@@ -590,7 +590,12 @@ $defs:
 #   6. Every action-step `context:` reference must exist in `contexts:`.
 #   7. Every `primitives_required` entry must be in the registered set.
 #   8. For `type: assertion_only`, branches must not contain `shell` steps.
-#   9. For `isolation: compiler`, branches must have `compile_*` assertions.
+#      Enforced in server/src/runlog/sanitize/submit_rules.py rule 8.
+#   9. (removed — the `compile_*` assertion-type rule was not enforceable:
+#      the canonical compiler-tier seed uses `type: raises`/`type: returns`
+#      with extra fields, and `primitives_required` has no `compile_*` enum
+#      values.  The constraint is revisited when the verifier formalises the
+#      compiler isolation harness.)
 #  10. Every `domain[*]` must resolve to a public source per the scope rule
 #      (the SCOPE_REGISTRY service, populated from package registries and
 #      documented public APIs).

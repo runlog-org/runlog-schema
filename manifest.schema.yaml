@@ -47,7 +47,7 @@ properties:
       properties:
         kb_id:
           type: string
-          pattern: "^[a-z0-9][a-z0-9-]{2,127}$"
+          pattern: "^[a-z0-9][a-z0-9-]{3,127}$"
           description: "The unit_id of a Runlog entry."
         retrieved:
           type: string
