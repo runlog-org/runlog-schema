@@ -1,0 +1,13 @@
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Generator artifacts ──
+generators/go/dist/
+generators/python/dist/
+generators/python/*.egg-info/
+__pycache__/

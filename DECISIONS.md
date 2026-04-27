@@ -1,6 +1,6 @@
 # Schema Format Decisions — Ratified for v0.1
 
-Positions on the sixteen format decisions surfaced across four batches of seed-entry drafting (see [`../server/seeds/CRITIQUE.md`](../server/seeds/CRITIQUE.md)).
+Positions on the sixteen format decisions surfaced across four batches of seed-entry drafting (see [`../server/seeds/CRITIQUE.md`](https://github.com/runlog-org/runlog/blob/main/server/seeds/CRITIQUE.md)).
 
 These are **ratified and encoded in [`entry.schema.yaml`](./entry.schema.yaml)**. Override requires a schema revision.
 

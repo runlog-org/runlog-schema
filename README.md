@@ -1,8 +1,8 @@
-# schema/ — Contract Shared Between Verifier, Server, and Skills
+# Runlog Schema — Contract Shared Between Verifier, Server, and Skills
 
-**Future repo:** `runlog-schema` — public, Apache-2.0 (planned)
+**Repo:** [`runlog-org/runlog-schema`](https://github.com/runlog-org/runlog-schema) — public, Apache-2.0
 **Content:** YAML + JSON Schema
-**Implements:** [`../docs/04-submission-format.md`](../docs/04-submission-format.md) and the session-manifest spec in [`../docs/03-verification-and-provenance.md`](../docs/03-verification-and-provenance.md) §6
+**Implements:** [`runlog-docs/04-submission-format.md`](https://github.com/runlog-org/runlog-docs/blob/main/04-submission-format.md) and the session-manifest spec in [`runlog-docs/03-verification-and-provenance.md`](https://github.com/runlog-org/runlog-docs/blob/main/03-verification-and-provenance.md) §6
 
 Single source of truth for:
 
@@ -12,7 +12,7 @@ Single source of truth for:
 - `session-manifest.schema.yaml` — dependency manifest an agent tags into its working context (§6.2)
 - `placeholders.yaml` — registered `$PLACEHOLDER` vocabulary (§7.2)
 
-Semver-versioned. Downstream consumers (`verifier/`, `server/`, `skills/`) pin to a specific schema version. Backward-incompatible changes require a major bump and coordinated release across consumers.
+Semver-versioned. Downstream consumers ([`runlog-verifier`](https://github.com/runlog-org/runlog-verifier), [`runlog`](https://github.com/runlog-org/runlog) (server), [`runlog-skills`](https://github.com/runlog-org/runlog-skills)) pin to a specific schema version. Backward-incompatible changes require a major bump and coordinated release across consumers.
 
 ## Generators
 
