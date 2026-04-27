@@ -479,6 +479,38 @@ $defs:
         type: object
         additionalProperties:
           $ref: "#/$defs/cassette_step"
+      runtime:
+        type: object
+        description: >
+          Reexecute-mode runtime declaration. Names the host CLI the verifier
+          drives (sqlite, shell, postgres, redis, git, docker) and an advisory
+          version constraint. v0.1 of the verifier supports `sqlite` and
+          `shell`; other tools surface `runtime_tool_not_yet_implemented`.
+        required: [tool]
+        additionalProperties: false
+        properties:
+          tool:
+            enum: [sqlite, shell, postgres, redis, git, docker]
+          version:
+            type: string
+            description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
+      setup_script:
+        type: array
+        description: >
+          Reexecute-mode sandbox preparation. Shell commands run once per
+          branch (and once per mutation re-run) before any branch action,
+          with $-tokens substituted from inputs + $WORKDIR + (when tool is
+          sqlite) $DB_PATH. A non-zero exit aborts the branch with
+          `setup_script_failed`.
+        items: { type: string }
+      teardown_script:
+        type: array
+        description: >
+          Reexecute-mode sandbox cleanup. Shell commands run after each
+          branch (and each mutation re-run), even on failure. Exit codes
+          are not enforced — teardown is best-effort. The tmpdir is
+          os.RemoveAll'd unconditionally afterwards.
+        items: { type: string }
       captures:
         type: array
         minItems: 1
@@ -497,6 +529,12 @@ $defs:
       use_real_clock:
         type: boolean
         description: "When true on mode=reexecute, harness uses wall clock instead of simulated."
+    allOf:
+      - if:
+          properties: { mode: { const: reexecute } }
+          required: [mode]
+        then:
+          required: [runtime]
 
   cassette_step:
     type: object
