@@ -1,5 +1,7 @@
 # Runlog Schema — Contract Shared Between Verifier, Server, and Skills
 
+> Part of the **[Runlog](https://github.com/runlog-org)** project — see the [project home](https://github.com/runlog-org) for the overview.
+
 **Repo:** [`runlog-org/runlog-schema`](https://github.com/runlog-org/runlog-schema) — public, Apache-2.0
 **Content:** YAML + JSON Schema
 **Implements:** [`runlog-docs/04-submission-format.md`](https://github.com/runlog-org/runlog-docs/blob/main/04-submission-format.md) and the session-manifest spec in [`runlog-docs/03-verification-and-provenance.md`](https://github.com/runlog-org/runlog-docs/blob/main/03-verification-and-provenance.md) §6
