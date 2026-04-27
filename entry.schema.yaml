@@ -553,11 +553,17 @@ $defs:
           - drop_flag
           - swap_function_call
           - mutate_fixture
+          - mutate_cassette_response
           - custom
       target: { type: string }
       new_value: {}
       token: { type: string }
-      action: { type: string }
+      action:
+        type: string
+        description: >
+          For mutate_cassette_response, carries the response field selector:
+          `body`, `status`, or `header.<NAME>`. For other strategies this slot
+          is reserved for future per-strategy use; today it is informational.
       module: { type: string }
       branch:
         enum: [failed_approach, working_approach, both]
