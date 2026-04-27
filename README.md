@@ -4,7 +4,7 @@
 
 **Repo:** [`runlog-org/runlog-schema`](https://github.com/runlog-org/runlog-schema) — public, Apache-2.0
 **Content:** YAML + JSON Schema
-**Implements:** [`runlog-docs/04-submission-format.md`](https://github.com/runlog-org/runlog-docs/blob/main/04-submission-format.md) and the session-manifest spec in [`runlog-docs/03-verification-and-provenance.md`](https://github.com/runlog-org/runlog-docs/blob/main/03-verification-and-provenance.md) §6
+**Role:** the contract that pins what entries, cassettes, signed bundles, and session manifests look like. Pinned to a specific version by [`runlog-verifier`](https://github.com/runlog-org/runlog-verifier) and the server.
 
 Single source of truth for:
 
