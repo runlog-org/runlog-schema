@@ -1,5 +1,5 @@
 $schema: "https://json-schema.org/draft/2020-12/schema"
-$id: "https://runlog.org/schema/entry.schema.yaml"
+$id: "https://runlog.org/schemas/entry/v1.json"
 title: "Runlog Entry"
 description: >
   Submission format for a Runlog knowledge entry. Every entry describes a
