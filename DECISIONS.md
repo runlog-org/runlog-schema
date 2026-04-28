@@ -380,3 +380,13 @@ Both fixes are non-breaking (they accept a strict superset of what the original 
 ## Distribution: Go module layout (F28a)
 
 The Go wrapper around the canonical schemas lives at the **repo root** as module `github.com/runlog-org/runlog-schema` (Option A). Picked over a sub-module (`.../go`) because the public API is just `//go:embed` of the YAML files plus a tiny YAML→JSON helper — keeping `go.mod` at the root means a single `vX.Y.Z` git tag versions both the schemas and the wrapper as one unit, which matches how downstream consumers (verifier, server, skills) already pin "the schema" as a single thing. Future generators in other languages (Python, TypeScript) will live at `generators/<lang>/` since only Go has a strong opinion about `go.mod` placement. First publishable tag will be `v0.1.0`, cut once the verifier consumer migration (F28b) is staged behind it.
+
+## Distribution: Python package layout (F28c)
+
+The Python distribution lives at **`generators/python/`** with the package name `runlog_schema` (PyPI: `runlog-schema`). Unlike Go, Python has no "repo root must be the package root" constraint — keeping `pyproject.toml` out of the repo root avoids a namespace fight with the Go-module-at-root layout (the schemas already live at root and would awkwardly straddle two distribution roots).
+
+Build backend is **`hatchling`** — modern, uv-friendly, first-class data-file support; setuptools' `MANIFEST.in` / `package_data` quirks aren't worth the legacy mass for a 1-module package. The public API mirrors the Go module byte-for-byte where Python permits: snake_case function names (`entry_schema_yaml()` ↔ `EntrySchemaYAML()`), `bytes` returns (Go `[]byte`), `lru_cache` for the JSON forms (Go `sync.Once`), and a module-level `SCHEMA_VERSION` constant matching Go's `SchemaVersionConst`.
+
+Schema files are **committed copies** under `runlog_schema/_data/`, kept in sync with the canonical files at repo root via a CI gate (`python-generator` job) and a helper script (`generators/python/scripts/sync_schemas.sh`). PyPI wheels are zipfiles and don't follow symlinks, so a build-time copy hook would be fragile; committed copies + a `cmp` gate trade a few KB of duplicate-on-disk for guaranteed consistency with a single failure point if a contributor forgets to run the sync script.
+
+Consumed via `importlib.resources.files()`, stable since Python 3.9 and load-bearing identically on the supported floor (3.10) and production target (3.12). Python ≥3.10 matches the server's pinned floor. PyPI publish is a separate slice — this lands the structure first.

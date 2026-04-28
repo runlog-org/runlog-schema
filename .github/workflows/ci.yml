@@ -60,9 +60,7 @@ jobs:
   # F28a: smoke the Go module that wraps the canonical schemas
   # (go.mod at repo root; see DECISIONS.md). Catches regressions where
   # an embed file is renamed, the wrapper drifts from the schemas, or a
-  # new dep gets pulled in without go.sum being committed. The
-  # corresponding Python generator scaffold is still pending — when it
-  # lands, add it as a parallel job here.
+  # new dep gets pulled in without go.sum being committed.
   generators-smoke:
     runs-on: ubuntu-latest
     steps:
@@ -91,3 +89,39 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+  # F28c: smoke the Python distribution under generators/python/.
+  # The bundled _data/*.yaml are committed copies of the canonical
+  # schemas at the repo root; this job fails if they drift. Then it
+  # installs the package (which exercises the hatchling build) and
+  # runs the pytest suite that mirrors the Go test invariants.
+  python-generator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Bundled copies must match the canonical schemas byte-for-byte.
+      # If they don't, run `bash generators/python/scripts/sync_schemas.sh`
+      # locally and commit the result alongside the schema edit.
+      - name: Bundled schemas match canonical
+        run: |
+          set -e
+          for f in entry.schema.yaml manifest.schema.yaml; do
+            if ! cmp -s "$f" "generators/python/runlog_schema/_data/$f"; then
+              echo "::error file=generators/python/runlog_schema/_data/$f::drifted from canonical $f; run generators/python/scripts/sync_schemas.sh"
+              diff -u "$f" "generators/python/runlog_schema/_data/$f" || true
+              exit 1
+            fi
+            echo "$f: in sync"
+          done
+
+      - name: Install package
+        run: pip install './generators/python[test]'
+
+      - name: Pytest
+        run: pytest -v generators/python/tests/

@@ -1,0 +1,663 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://runlog.org/schemas/entry/v1.json"
+title: "Runlog Entry"
+description: >
+  Submission format for a Runlog knowledge entry. Every entry describes a
+  claim about a third-party system in before/after form, with a verification
+  block the signed verifier runs to confirm the claim is falsifiable.
+  Ratified decisions in ./DECISIONS.md.
+
+type: object
+required:
+  - unit_id
+  - domain
+  - version_constraints
+  - failed_approach
+  - working_approach
+  - verification
+
+additionalProperties: false
+
+properties:
+
+  # ─── Identity ────────────────────────────────────────────────────────────
+  unit_id:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]{3,127}$"
+    description: "Slug-form identifier. Matches filename without extension."
+
+  domain:
+    type: array
+    minItems: 1
+    items:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: >
+      Domain tags. Must resolve to public sources at `runlog_submit` scope check
+      (§7.0 of submission-format doc). At least one tag required.
+
+  # ─── Version and scope ──────────────────────────────────────────────────
+  version_constraints:
+    type: object
+    additionalProperties: false
+    properties:
+      runtime:
+        $ref: "#/$defs/runtime_pin"
+      packages:
+        type: array
+        items:
+          $ref: "#/$defs/package_pin"
+      external_services:
+        type: array
+        items:
+          $ref: "#/$defs/external_service_pin"
+      build_features:
+        type: array
+        items:
+          $ref: "#/$defs/build_feature_pin"
+      spec:
+        $ref: "#/$defs/spec_anchor"
+      notes:
+        type: string
+    anyOf:
+      - required: [runtime]
+      - required: [packages]
+      - required: [external_services]
+      - required: [spec]
+
+  claim_scope:
+    description: "§9. Asymmetric version applicability."
+    type: object
+    additionalProperties: false
+    required: [applies_when, outside_scope_disposition]
+    properties:
+      applies_when:
+        $ref: "#/$defs/version_pin_subset"
+      outside_scope_disposition:
+        enum: [inapplicable, claim_holds, claim_inverted]
+
+  # ─── Literals (§1) ──────────────────────────────────────────────────────
+  literals:
+    type: object
+    patternProperties:
+      "^\\$LITERAL_[A-Z0-9_]+$":
+        type: object
+        additionalProperties: false
+        required: [value, reason, category]
+        properties:
+          value: {}
+          reason:
+            type: string
+            minLength: 10
+          category:
+            enum: [public_constant, public_identifier, standard_name]
+    additionalProperties: false
+
+  # ─── Fixtures (§10) ─────────────────────────────────────────────────────
+  fixtures:
+    type: object
+    patternProperties:
+      "^\\$FIXTURE_[A-Z0-9_]+$":
+        $ref: "#/$defs/fixture"
+    additionalProperties: false
+
+  # ─── Contexts (§7) ──────────────────────────────────────────────────────
+  contexts:
+    type: object
+    description: "Multiple independent execution environments for the test."
+    additionalProperties:
+      $ref: "#/$defs/context"
+
+  # ─── Branches ───────────────────────────────────────────────────────────
+  failed_approach:
+    $ref: "#/$defs/branch"
+  working_approach:
+    $ref: "#/$defs/branch"
+
+  # ─── Verification ───────────────────────────────────────────────────────
+  verification:
+    $ref: "#/$defs/verification"
+
+
+# ─── Shared definitions ────────────────────────────────────────────────────
+$defs:
+
+  runtime_pin:
+    type: object
+    additionalProperties: false
+    required: [name, version]
+    properties:
+      name:
+        type: string
+        pattern: "^[a-z][a-z0-9_+-]*$"
+      version:
+        type: string
+        description: "Source-syntax version constraint; platform normalizes."
+
+  package_pin:
+    type: object
+    additionalProperties: false
+    required: [name, version]
+    properties:
+      name:
+        type: string
+      version:
+        type: string
+        description: "Language-native version constraint; platform normalizes."
+
+  external_service_pin:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name:
+        type: string
+      api_version:
+        type: string
+      api_endpoint:
+        type: string
+      spec:
+        type: string
+
+  build_feature_pin:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name:
+        type: string
+      min_version:
+        type: string
+      enabled:
+        enum: [required, optional]
+
+  spec_anchor:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name:
+        type: string
+        description: "Spec name, e.g. RFC 7636"
+      section:
+        type: string
+      anchor:
+        type: string
+
+  version_pin_subset:
+    type: object
+    additionalProperties: false
+    properties:
+      runtime:
+        $ref: "#/$defs/runtime_pin"
+      packages:
+        type: array
+        items:
+          $ref: "#/$defs/package_pin"
+
+  # ─── Fixture ─────────────────────────────────────────────────────────────
+  fixture:
+    oneOf:
+      - $ref: "#/$defs/fixture_sparse_file"
+      - $ref: "#/$defs/fixture_regular_file"
+      - $ref: "#/$defs/fixture_directory"
+      - $ref: "#/$defs/fixture_sqlite_database"
+      - $ref: "#/$defs/fixture_postgres_database"
+      - $ref: "#/$defs/fixture_redis_instance"
+      - $ref: "#/$defs/fixture_docker_context"
+      - $ref: "#/$defs/fixture_http_endpoint"
+
+  # Shared file-tree shape used by directory + docker_context fixtures.
+  # Path-keyed map of file contents (relative paths → file body).
+  file_tree:
+    type: object
+    additionalProperties: { type: string }
+
+  fixture_sparse_file:
+    type: object
+    additionalProperties: false
+    required: [kind, size, content]
+    properties:
+      kind: { const: sparse_file }
+      size: { type: integer, minimum: 0 }
+      content: { enum: [zero, random, pattern] }
+
+  fixture_regular_file:
+    type: object
+    additionalProperties: false
+    required: [kind, content]
+    properties:
+      kind: { const: regular_file }
+      content: { type: string }
+      mode: { type: string, pattern: "^[0-7]{3,4}$" }
+
+  fixture_directory:
+    type: object
+    additionalProperties: false
+    required: [kind, files]
+    properties:
+      kind: { const: directory }
+      files:
+        $ref: "#/$defs/file_tree"
+
+  fixture_sqlite_database:
+    type: object
+    additionalProperties: false
+    required: [kind]
+    properties:
+      kind: { const: sqlite_database }
+      schema: { type: string }
+      seed_data: { type: array }
+      pragmas: { type: object }
+
+  fixture_postgres_database:
+    type: object
+    additionalProperties: false
+    required: [kind]
+    properties:
+      kind: { const: postgres_database }
+      schema: { type: string }
+      seed_data: { type: array }
+      extensions: { type: array, items: { type: string } }
+
+  fixture_redis_instance:
+    type: object
+    additionalProperties: false
+    required: [kind]
+    properties:
+      kind: { const: redis_instance }
+      preloaded_keys: { type: object }
+      config: { type: object }
+
+  fixture_docker_context:
+    type: object
+    additionalProperties: false
+    required: [kind, files]
+    properties:
+      kind: { const: docker_context }
+      files:
+        $ref: "#/$defs/file_tree"
+
+  fixture_http_endpoint:
+    type: object
+    additionalProperties: false
+    required: [kind, cassette]
+    properties:
+      kind: { const: http_endpoint }
+      cassette: { type: string }
+
+  # ─── Context ─────────────────────────────────────────────────────────────
+  context:
+    type: object
+    additionalProperties: false
+    required: [kind]
+    properties:
+      kind:
+        enum:
+          - sqlite_connection
+          - postgres_connection
+          - redis_connection
+          - http_endpoint
+          - browser_tab
+          - subprocess
+          - docker_container
+      database: { type: string }
+      endpoint: { type: string }
+      pragmas: { type: object }
+      config: { type: object }
+
+  # ─── Branch (failed_approach / working_approach) ─────────────────────────
+  branch:
+    type: object
+    additionalProperties: false
+    required: [description, assertion]
+    properties:
+      description:
+        type: string
+        minLength: 30
+      setup:
+        type: array
+        items:
+          $ref: "#/$defs/step_fragment"
+      action:
+        oneOf:
+          - $ref: "#/$defs/step_fragment"
+          - type: array
+            items:
+              $ref: "#/$defs/step_fragment"
+          - $ref: "#/$defs/action_steps_block"
+      assertion:
+        $ref: "#/$defs/assertion"
+
+  action_steps_block:
+    type: object
+    required: [steps]
+    additionalProperties: false
+    properties:
+      steps:
+        type: array
+        minItems: 1
+        items:
+          $ref: "#/$defs/action_step"
+
+  action_step:
+    type: object
+    additionalProperties: false
+    required: [id, type]
+    properties:
+      id: { type: string, pattern: "^[a-z][a-z0-9-]*$" }
+      type:
+        enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
+      context:
+        type: string
+        description: "References a key in top-level `contexts:`"
+      body: { type: string }
+      lang: { type: string }
+      change: { type: object }   # for type: mutation
+      duration_seconds: { type: number }  # for type: wait
+      inputs: {}
+
+  step_fragment:
+    type: object
+    required: [type]
+    properties:
+      type:
+        enum: [code, shell, sql, dockerfile, data, logic]
+      lang: { type: string }
+      body: {}
+    additionalProperties: true
+
+  # ─── Assertion (§2) ──────────────────────────────────────────────────────
+  assertion:
+    type: object
+    required: [type, expect]
+    properties:
+      type:
+        enum:
+          - status
+          - raises
+          - returns
+          - plan_node
+          - http_shape
+          - output_match
+          - value_equals
+          - value_contains
+          - value_not_equals
+          - length_equals
+          - collection_contains_type
+          - compile_error_contains
+          - compile_succeeds
+          - custom
+      expect:
+        enum: [success, fail]
+      module:
+        type: string
+        description: "Required when type: custom"
+      after_step:
+        type: string
+        description: "Binds assertion to a specific action-step id."
+      # Type-specific fields (loose — individual types validate internals via
+      # additional allOf branches at the platform level).
+    additionalProperties: true
+    allOf:
+      - if: { properties: { type: { const: custom } } }
+        then: { required: [module] }
+
+  # ─── Verification ────────────────────────────────────────────────────────
+  verification:
+    type: object
+    required: [type, differential, mutations, timeout_seconds]
+    additionalProperties: false
+    properties:
+      type:
+        enum: [assertion_only, unit, integration]
+      isolation:
+        enum:
+          - function
+          - subprocess
+          - compiler
+          - database
+          - http_client
+          - docker_daemon
+      primitives_required:
+        type: array
+        items:
+          enum:
+            - sha1
+            - sha256
+            - sha512
+            - md5
+            - base64
+            - base64url
+            - hex
+            - utf8
+            - json_canonical
+            - yaml_load_1_1
+            - yaml_load_1_2
+            - add
+            - sub
+            - mul
+            - div
+            - mod
+            - equal
+            - not_equal
+            - lt
+            - gt
+            - lte
+            - gte
+            - logic.and
+            - logic.or
+            - logic.not
+            - logic.any
+            - logic.all
+            - string.matches_regex
+            - string.matches_glob_arn
+            - k8s.parse_quantity_to_milli
+      cassette:
+        $ref: "#/$defs/cassette"
+      differential:
+        $ref: "#/$defs/differential"
+      mutations:
+        type: array
+        minItems: 2
+        items:
+          $ref: "#/$defs/mutation"
+      timeout_seconds:
+        type: number
+        exclusiveMinimum: 0
+        maximum: 300
+    allOf:
+      - if: { properties: { type: { const: assertion_only } } }
+        then:
+          required: [primitives_required]
+          not: { required: [cassette] }
+      - if: { properties: { type: { const: unit } } }
+        then:
+          required: [isolation]
+      - if: { properties: { type: { const: integration } } }
+        then:
+          required: [isolation, cassette]
+
+  # ─── Cassette (§3) ───────────────────────────────────────────────────────
+  cassette:
+    type: object
+    required: [mode, artifact, captures, strips, replay_targets]
+    additionalProperties: false
+    properties:
+      mode:
+        enum: [replay, reexecute]
+      artifact:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9.-]+\\.(yaml|json)$"
+      steps:
+        type: object
+        additionalProperties:
+          $ref: "#/$defs/cassette_step"
+      runtime:
+        type: object
+        description: >
+          Reexecute-mode runtime declaration. Names the host CLI the verifier
+          drives (sqlite, shell, postgres, redis, git, docker) and an advisory
+          version constraint. v0.1 of the verifier supports `sqlite` and
+          `shell`; other tools surface `runtime_tool_not_yet_implemented`.
+        required: [tool]
+        additionalProperties: false
+        properties:
+          tool:
+            enum: [sqlite, shell, postgres, redis, git, docker]
+          version:
+            type: string
+            description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
+      setup_script:
+        type: array
+        description: >
+          Reexecute-mode sandbox preparation. Shell commands run once per
+          branch (and once per mutation re-run) before any branch action,
+          with $-tokens substituted from inputs + $WORKDIR + (when tool is
+          sqlite) $DB_PATH. A non-zero exit aborts the branch with
+          `setup_script_failed`.
+        items: { type: string }
+      teardown_script:
+        type: array
+        description: >
+          Reexecute-mode sandbox cleanup. Shell commands run after each
+          branch (and each mutation re-run), even on failure. Exit codes
+          are not enforced — teardown is best-effort. The tmpdir is
+          os.RemoveAll'd unconditionally afterwards.
+        items: { type: string }
+      captures:
+        type: array
+        minItems: 1
+        items: { type: string }
+      strips:
+        type: array
+        minItems: 1
+        items: { type: string }
+      replay_targets:
+        type: array
+        minItems: 1
+        items: { type: string }
+      time_model:
+        type: object
+        description: "Simulated clock variables referenced in cassette steps."
+      use_real_clock:
+        type: boolean
+        description: "When true on mode=reexecute, harness uses wall clock instead of simulated."
+    allOf:
+      # `mode` is in cassette.required, so the `if` clause never evaluates
+      # vacuously — no defensive `required: [mode]` needed in the predicate.
+      - if:
+          properties: { mode: { const: reexecute } }
+        then:
+          required: [runtime]
+
+  cassette_step:
+    type: object
+    additionalProperties: false
+    required: [request, response]
+    properties:
+      request: { type: string }
+      response: { type: string }
+
+  # ─── Differential (§4) ───────────────────────────────────────────────────
+  differential:
+    type: object
+    additionalProperties: true
+    properties:
+      inputs:
+        oneOf:
+          - type: object
+            description: "Per-branch inputs."
+            additionalProperties: false
+            required: [failed_approach, working_approach]
+            properties:
+              failed_approach: { type: object }
+              working_approach: { type: object }
+          - type: object
+            description: "Shared inputs across both branches."
+            not:
+              required: [failed_approach, working_approach]
+      failed_branch_must_fail_with: { type: string }
+      failed_branch_must_raise: {}
+      failed_branch_must_return: {}
+      working_branch_must_pass: { type: boolean }
+      working_branch_must_return: {}
+      failed_approach_replay_sequence:
+        type: array
+        items: { type: string }
+      working_approach_replay_sequence:
+        type: array
+        items: { type: string }
+      failed_approach_observation: { type: object }
+      working_approach_observation: { type: object }
+      setup_sequence:
+        type: array
+        items: { type: string }
+
+  # ─── Mutation (§4) ───────────────────────────────────────────────────────
+  mutation:
+    type: object
+    required: [strategy, target]
+    properties:
+      strategy:
+        enum:
+          - set_literal_value
+          - remove_kwarg
+          - swap_identifier
+          - drop_flag
+          - swap_function_call
+          - mutate_fixture
+          - mutate_cassette_response
+          - custom
+      target: { type: string }
+      new_value: {}
+      token: { type: string }
+      action:
+        type: string
+        description: >
+          For mutate_cassette_response, carries the response field selector:
+          `body`, `status`, or `header.<NAME>`. For other strategies this slot
+          is reserved for future per-strategy use; today it is informational.
+      module: { type: string }
+      branch:
+        enum: [failed_approach, working_approach, both]
+      expected_result:
+        enum: [fail, unchanged, pass, inapplicable]
+      expected_branch_outcome:
+        type: object
+        additionalProperties:
+          enum: [fail, unchanged, pass, inapplicable, assertion_does_not_match]
+    oneOf:
+      - required: [expected_result]
+      - required: [expected_branch_outcome]
+    allOf:
+      - if: { properties: { strategy: { const: custom } } }
+        then: { required: [module] }
+
+
+# ─── Submission-time global rules ──────────────────────────────────────────
+#
+# These constraints are enforced at runlog_submit time, layered on top of
+# pure JSON Schema validation (which can't express them directly):
+#
+#   1. At least one mutation with `strategy: mutate_fixture`.
+#   2. At least one mutation with `expected_result: fail` or
+#      `expected_branch_outcome: {* : fail}`.
+#   3. At least one mutation with `expected_result: unchanged` or
+#      `expected_branch_outcome: {* : unchanged}`.
+#   4. Every `$LITERAL_N` referenced in branches must be declared in `literals:`.
+#   5. Every `$FIXTURE_*` referenced must be declared in `fixtures:`.
+#   6. Every action-step `context:` reference must exist in `contexts:`.
+#   7. Every `primitives_required` entry must be in the registered set.
+#   8. For `type: assertion_only`, branches must not contain `shell` steps.
+#      Enforced in server/src/runlog/sanitize/submit_rules.py rule 8.
+#   9. (removed — the `compile_*` assertion-type rule was not enforceable:
+#      the canonical compiler-tier seed uses `type: raises`/`type: returns`
+#      with extra fields, and `primitives_required` has no `compile_*` enum
+#      values.  The constraint is revisited when the verifier formalises the
+#      compiler isolation harness.)
+#  10. Every `domain[*]` must resolve to a public source per the scope rule
+#      (the SCOPE_REGISTRY service, populated from package registries and
+#      documented public APIs).
+#
+# Reference: `../docs/04-submission-format.md §7.0`.

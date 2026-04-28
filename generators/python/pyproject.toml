@@ -1,0 +1,74 @@
+# Python distribution of runlog-schema. Mirrors the Go module's API
+# surface (see ../../schema.go). Schema YAML files are committed
+# copies under runlog_schema/_data/; CI gates that they match the
+# canonical files at the repo root (see ../../scripts/ and the
+# python-generator job in ../../.github/workflows/ci.yml).
+#
+# F28a (Go) lives at the repo root; this F28c slice puts the Python
+# package under generators/python/ so the two distributions don't
+# fight over namespace. See ../../DECISIONS.md "Distribution: Python
+# package layout (F28c)".
+
+[project]
+name = "runlog-schema"
+version = "0.1.0"
+description = "Canonical YAML schemas for Runlog entries and session manifests"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+readme = "README.md"
+authors = [
+    { name = "Runlog", email = "hello@runlog.org" },
+]
+keywords = ["runlog", "schema", "json-schema", "verification"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "jsonschema>=4.18",
+]
+
+[project.urls]
+Homepage = "https://github.com/runlog-org/runlog-schema"
+Repository = "https://github.com/runlog-org/runlog-schema"
+Issues = "https://github.com/runlog-org/runlog-schema/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# hatchling chosen as the build backend: it's the modern uv-friendly
+# default, has first-class support for shipping non-Python data files
+# via the `force-include` / `packages` knobs, and matches what most
+# new Python packages in 2025 use. Setuptools would also work but
+# carries legacy baggage (MANIFEST.in, package_data quirks); flit
+# can't include arbitrary data dirs cleanly.
+[tool.hatch.build.targets.wheel]
+packages = ["runlog_schema"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "runlog_schema",
+    "tests",
+    "README.md",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
