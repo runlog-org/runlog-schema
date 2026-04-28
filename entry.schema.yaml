@@ -207,8 +207,15 @@ $defs:
       - $ref: "#/$defs/fixture_docker_context"
       - $ref: "#/$defs/fixture_http_endpoint"
 
+  # Shared file-tree shape used by directory + docker_context fixtures.
+  # Path-keyed map of file contents (relative paths → file body).
+  file_tree:
+    type: object
+    additionalProperties: { type: string }
+
   fixture_sparse_file:
     type: object
+    additionalProperties: false
     required: [kind, size, content]
     properties:
       kind: { const: sparse_file }
@@ -217,6 +224,7 @@ $defs:
 
   fixture_regular_file:
     type: object
+    additionalProperties: false
     required: [kind, content]
     properties:
       kind: { const: regular_file }
@@ -225,15 +233,16 @@ $defs:
 
   fixture_directory:
     type: object
+    additionalProperties: false
     required: [kind, files]
     properties:
       kind: { const: directory }
       files:
-        type: object
-        additionalProperties: { type: string }
+        $ref: "#/$defs/file_tree"
 
   fixture_sqlite_database:
     type: object
+    additionalProperties: false
     required: [kind]
     properties:
       kind: { const: sqlite_database }
@@ -243,6 +252,7 @@ $defs:
 
   fixture_postgres_database:
     type: object
+    additionalProperties: false
     required: [kind]
     properties:
       kind: { const: postgres_database }
@@ -252,6 +262,7 @@ $defs:
 
   fixture_redis_instance:
     type: object
+    additionalProperties: false
     required: [kind]
     properties:
       kind: { const: redis_instance }
@@ -260,15 +271,16 @@ $defs:
 
   fixture_docker_context:
     type: object
+    additionalProperties: false
     required: [kind, files]
     properties:
       kind: { const: docker_context }
       files:
-        type: object
-        additionalProperties: { type: string }
+        $ref: "#/$defs/file_tree"
 
   fixture_http_endpoint:
     type: object
+    additionalProperties: false
     required: [kind, cassette]
     properties:
       kind: { const: http_endpoint }
@@ -277,6 +289,7 @@ $defs:
   # ─── Context ─────────────────────────────────────────────────────────────
   context:
     type: object
+    additionalProperties: false
     required: [kind]
     properties:
       kind:
@@ -329,6 +342,7 @@ $defs:
 
   action_step:
     type: object
+    additionalProperties: false
     required: [id, type]
     properties:
       id: { type: string, pattern: "^[a-z][a-z0-9-]*$" }
@@ -530,14 +544,16 @@ $defs:
         type: boolean
         description: "When true on mode=reexecute, harness uses wall clock instead of simulated."
     allOf:
+      # `mode` is in cassette.required, so the `if` clause never evaluates
+      # vacuously — no defensive `required: [mode]` needed in the predicate.
       - if:
           properties: { mode: { const: reexecute } }
-          required: [mode]
         then:
           required: [runtime]
 
   cassette_step:
     type: object
+    additionalProperties: false
     required: [request, response]
     properties:
       request: { type: string }
