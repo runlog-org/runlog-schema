@@ -16,7 +16,7 @@ Single source of truth for:
 
 Semver-versioned. Downstream consumers ([`runlog-verifier`](https://github.com/runlog-org/runlog-verifier), [`runlog`](https://github.com/runlog-org/runlog) (server), [`runlog-skills`](https://github.com/runlog-org/runlog-skills)) pin to a specific schema version. Backward-incompatible changes require a major bump and coordinated release across consumers.
 
-## Generators
+## Distribution
 
-- `generators/go/` — emits a Go module for `runlog-verifier` to vendor
-- `generators/python/` — emits a PyPI package for `runlog-server` to install
+- **Go module** — the repo root is itself the Go module `github.com/runlog-org/runlog-schema`. Consumers do `import "github.com/runlog-org/runlog-schema"` and call `EntrySchemaYAML()` / `ManifestSchemaYAML()` (or the `…JSON` variants for libraries that don't accept YAML). See [`schema.go`](./schema.go) and [`DECISIONS.md`](./DECISIONS.md) §"Distribution: Go module layout" for the layout rationale.
+- `generators/python/` — will emit a PyPI package for `runlog-server` to install (F28 second slice; not yet implemented).

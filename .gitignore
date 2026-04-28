@@ -7,7 +7,6 @@ Thumbs.db
 *.swo
 
 # ── Generator artifacts ──
-generators/go/dist/
 generators/python/dist/
 generators/python/*.egg-info/
 __pycache__/

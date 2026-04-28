@@ -376,3 +376,7 @@ Two schema bugs were surfaced when validating the 21 migrated seed entries again
 2. **`differential.inputs` oneOf was ambiguous.** The "shared inputs" branch had no constraint preventing it from matching an entry whose inputs are actually per-branch, causing JSON Schema `oneOf` to match both branches and fail. Fixed by making the per-branch form the explicit first option and constraining the shared form with `not: { required: [failed_approach, working_approach] }` so only one branch matches any given input.
 
 Both fixes are non-breaking (they accept a strict superset of what the original schema accepted). No re-authoring of entries was required after the schema corrections.
+
+## Distribution: Go module layout (F28a)
+
+The Go wrapper around the canonical schemas lives at the **repo root** as module `github.com/runlog-org/runlog-schema` (Option A). Picked over a sub-module (`.../go`) because the public API is just `//go:embed` of the YAML files plus a tiny YAML→JSON helper — keeping `go.mod` at the root means a single `vX.Y.Z` git tag versions both the schemas and the wrapper as one unit, which matches how downstream consumers (verifier, server, skills) already pin "the schema" as a single thing. Future generators in other languages (Python, TypeScript) will live at `generators/<lang>/` since only Go has a strong opinion about `go.mod` placement. First publishable tag will be `v0.1.0`, cut once the verifier consumer migration (F28b) is staged behind it.

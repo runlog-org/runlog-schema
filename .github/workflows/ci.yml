@@ -57,7 +57,37 @@ jobs:
           sys.exit(1 if failed else 0)
           PY
 
-  # NOTE (F27): generators-smoke job intentionally omitted.
-  # generators/{go,python}/ currently contain only .gitkeep — there is
-  # nothing runnable to exercise. Re-add this job under F28 once the
-  # generator scaffolds (go.mod / pyproject.toml + entrypoint) land.
+  # F28a: smoke the Go module that wraps the canonical schemas
+  # (go.mod at repo root; see DECISIONS.md). Catches regressions where
+  # an embed file is renamed, the wrapper drifts from the schemas, or a
+  # new dep gets pulled in without go.sum being committed. The
+  # corresponding Python generator scaffold is still pending — when it
+  # lands, add it as a parallel job here.
+  generators-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: go.sum
+
+      # `go mod tidy` must be a no-op in CI: any drift means a contributor
+      # forgot to commit go.sum or a stale dependency lingered. Mirrors the
+      # gate the verifier workflow gained alongside this job.
+      - name: Tidy is clean
+        run: |
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "::error::go mod tidy produced changes; commit go.mod/go.sum"
+            git --no-pager diff go.mod go.sum
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
