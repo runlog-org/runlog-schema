@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validator deps
+        run: pip install --upgrade pyyaml jsonschema
+
+      # The schemas are YAML *of* a JSON Schema. We must verify both that
+      # each file is well-formed YAML and that the loaded structure is a
+      # syntactically valid JSON Schema (Draft 2020-12 per $schema). A
+      # broken root contract would silently propagate to verifier, server,
+      # and skills, so this gate must fail loudly.
+      - name: Validate *.schema.yaml
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+          from jsonschema import Draft202012Validator
+
+          failed = False
+          for path in sorted(glob.glob("*.schema.yaml")):
+              try:
+                  with open(path) as fp:
+                      schema = yaml.safe_load(fp)
+              except yaml.YAMLError as e:
+                  print(f"::error file={path}::YAML parse error: {e}")
+                  failed = True
+                  continue
+              try:
+                  Draft202012Validator.check_schema(schema)
+              except Exception as e:
+                  print(f"::error file={path}::Invalid JSON Schema: {e}")
+                  failed = True
+                  continue
+              print(f"{path}: OK")
+          sys.exit(1 if failed else 0)
+          PY
+
+  # NOTE (F27): generators-smoke job intentionally omitted.
+  # generators/{go,python}/ currently contain only .gitkeep — there is
+  # nothing runnable to exercise. Re-add this job under F28 once the
+  # generator scaffolds (go.mod / pyproject.toml + entrypoint) land.
