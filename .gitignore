@@ -6,6 +6,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# ── Credentials ──
+.pypirc
+
 # ── Generator artifacts ──
 generators/python/dist/
 generators/python/build/
