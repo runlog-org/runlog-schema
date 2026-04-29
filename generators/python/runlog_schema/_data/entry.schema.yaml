@@ -23,14 +23,17 @@ properties:
   # ─── Identity ────────────────────────────────────────────────────────────
   unit_id:
     type: string
+    maxLength: 256
     pattern: "^[a-z0-9][a-z0-9-]{3,127}$"
     description: "Slug-form identifier. Matches filename without extension."
 
   domain:
     type: array
     minItems: 1
+    maxItems: 64
     items:
       type: string
+      maxLength: 256
       pattern: "^[a-z0-9][a-z0-9-]*$"
     description: >
       Domain tags. Must resolve to public sources at `runlog_submit` scope check
@@ -45,20 +48,24 @@ properties:
         $ref: "#/$defs/runtime_pin"
       packages:
         type: array
+        maxItems: 256
         items:
           $ref: "#/$defs/package_pin"
       external_services:
         type: array
+        maxItems: 256
         items:
           $ref: "#/$defs/external_service_pin"
       build_features:
         type: array
+        maxItems: 256
         items:
           $ref: "#/$defs/build_feature_pin"
       spec:
         $ref: "#/$defs/spec_anchor"
       notes:
         type: string
+        maxLength: 4096
     anyOf:
       - required: [runtime]
       - required: [packages]
@@ -79,6 +86,7 @@ properties:
   # ─── Literals (§1) ──────────────────────────────────────────────────────
   literals:
     type: object
+    maxProperties: 256
     patternProperties:
       "^\\$LITERAL_[A-Z0-9_]+$":
         type: object
@@ -89,6 +97,7 @@ properties:
           reason:
             type: string
             minLength: 10
+            maxLength: 4096
           category:
             enum: [public_constant, public_identifier, standard_name]
     additionalProperties: false
@@ -96,6 +105,7 @@ properties:
   # ─── Fixtures (§10) ─────────────────────────────────────────────────────
   fixtures:
     type: object
+    maxProperties: 256
     patternProperties:
       "^\\$FIXTURE_[A-Z0-9_]+$":
         $ref: "#/$defs/fixture"
@@ -104,6 +114,7 @@ properties:
   # ─── Contexts (§7) ──────────────────────────────────────────────────────
   contexts:
     type: object
+    maxProperties: 256
     description: "Multiple independent execution environments for the test."
     additionalProperties:
       $ref: "#/$defs/context"
@@ -129,9 +140,11 @@ $defs:
     properties:
       name:
         type: string
+        maxLength: 256
         pattern: "^[a-z][a-z0-9_+-]*$"
       version:
         type: string
+        maxLength: 256
         description: "Source-syntax version constraint; platform normalizes."
 
   package_pin:
@@ -141,8 +154,10 @@ $defs:
     properties:
       name:
         type: string
+        maxLength: 256
       version:
         type: string
+        maxLength: 256
         description: "Language-native version constraint; platform normalizes."
 
   external_service_pin:
@@ -152,12 +167,16 @@ $defs:
     properties:
       name:
         type: string
+        maxLength: 256
       api_version:
         type: string
+        maxLength: 256
       api_endpoint:
         type: string
+        maxLength: 1024
       spec:
         type: string
+        maxLength: 256
 
   build_feature_pin:
     type: object
@@ -166,8 +185,10 @@ $defs:
     properties:
       name:
         type: string
+        maxLength: 256
       min_version:
         type: string
+        maxLength: 256
       enabled:
         enum: [required, optional]
 
@@ -178,11 +199,14 @@ $defs:
     properties:
       name:
         type: string
+        maxLength: 256
         description: "Spec name, e.g. RFC 7636"
       section:
         type: string
+        maxLength: 256
       anchor:
         type: string
+        maxLength: 256
 
   version_pin_subset:
     type: object
@@ -192,6 +216,7 @@ $defs:
         $ref: "#/$defs/runtime_pin"
       packages:
         type: array
+        maxItems: 256
         items:
           $ref: "#/$defs/package_pin"
 
@@ -211,7 +236,8 @@ $defs:
   # Path-keyed map of file contents (relative paths → file body).
   file_tree:
     type: object
-    additionalProperties: { type: string }
+    maxProperties: 1024
+    additionalProperties: { type: string, maxLength: 65536 }
 
   fixture_sparse_file:
     type: object
@@ -219,7 +245,8 @@ $defs:
     required: [kind, size, content]
     properties:
       kind: { const: sparse_file }
-      size: { type: integer, minimum: 0 }
+      # 64 GiB — sparse files are advisory size; allow large but not exabyte.
+      size: { type: integer, minimum: 0, maximum: 68719476736 }
       content: { enum: [zero, random, pattern] }
 
   fixture_regular_file:
@@ -228,7 +255,10 @@ $defs:
     required: [kind, content]
     properties:
       kind: { const: regular_file }
-      content: { type: string }
+      content: { type: string, maxLength: 65536 }
+      # NOTE: downstream verifier MUST reject mode bits >= 04000
+      # (setuid/setgid/sticky). Schema-level regex is permissive on purpose;
+      # rejection lives in the verifier where octal arithmetic is natural.
       mode: { type: string, pattern: "^[0-7]{3,4}$" }
 
   fixture_directory:
@@ -246,9 +276,9 @@ $defs:
     required: [kind]
     properties:
       kind: { const: sqlite_database }
-      schema: { type: string }
-      seed_data: { type: array }
-      pragmas: { type: object }
+      schema: { type: string, maxLength: 65536 }
+      seed_data: { type: array, maxItems: 1024 }
+      pragmas: { type: object, maxProperties: 64 }
 
   fixture_postgres_database:
     type: object
@@ -256,9 +286,9 @@ $defs:
     required: [kind]
     properties:
       kind: { const: postgres_database }
-      schema: { type: string }
-      seed_data: { type: array }
-      extensions: { type: array, items: { type: string } }
+      schema: { type: string, maxLength: 65536 }
+      seed_data: { type: array, maxItems: 1024 }
+      extensions: { type: array, maxItems: 64, items: { type: string, maxLength: 256 } }
 
   fixture_redis_instance:
     type: object
@@ -266,8 +296,8 @@ $defs:
     required: [kind]
     properties:
       kind: { const: redis_instance }
-      preloaded_keys: { type: object }
-      config: { type: object }
+      preloaded_keys: { type: object, maxProperties: 1024 }
+      config: { type: object, maxProperties: 64 }
 
   fixture_docker_context:
     type: object
@@ -284,7 +314,7 @@ $defs:
     required: [kind, cassette]
     properties:
       kind: { const: http_endpoint }
-      cassette: { type: string }
+      cassette: { type: string, maxLength: 256 }
 
   # ─── Context ─────────────────────────────────────────────────────────────
   context:
@@ -301,10 +331,10 @@ $defs:
           - browser_tab
           - subprocess
           - docker_container
-      database: { type: string }
-      endpoint: { type: string }
-      pragmas: { type: object }
-      config: { type: object }
+      database: { type: string, maxLength: 1024 }
+      endpoint: { type: string, maxLength: 1024 }
+      pragmas: { type: object, maxProperties: 64 }
+      config: { type: object, maxProperties: 64 }
 
   # ─── Branch (failed_approach / working_approach) ─────────────────────────
   branch:
@@ -315,14 +345,17 @@ $defs:
       description:
         type: string
         minLength: 30
+        maxLength: 4096
       setup:
         type: array
+        maxItems: 64
         items:
           $ref: "#/$defs/step_fragment"
       action:
         oneOf:
           - $ref: "#/$defs/step_fragment"
           - type: array
+            maxItems: 64
             items:
               $ref: "#/$defs/step_fragment"
           - $ref: "#/$defs/action_steps_block"
@@ -337,6 +370,7 @@ $defs:
       steps:
         type: array
         minItems: 1
+        maxItems: 64
         items:
           $ref: "#/$defs/action_step"
 
@@ -345,29 +379,37 @@ $defs:
     additionalProperties: false
     required: [id, type]
     properties:
-      id: { type: string, pattern: "^[a-z][a-z0-9-]*$" }
+      id: { type: string, maxLength: 256, pattern: "^[a-z][a-z0-9-]*$" }
       type:
         enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
       context:
         type: string
+        maxLength: 256
         description: "References a key in top-level `contexts:`"
-      body: { type: string }
-      lang: { type: string }
-      change: { type: object }   # for type: mutation
+      body: { type: string, maxLength: 65536 }
+      lang: { type: string, maxLength: 64 }
+      change: { type: object, maxProperties: 64 }   # for type: mutation
       duration_seconds: { type: number }  # for type: wait
       inputs: {}
 
+  # NOTE: additionalProperties is intentionally true — type-specific fields
+  # (request, response, resource, action, etc.) vary per step kind and are
+  # validated downstream by the verifier's per-type contract layer.
   step_fragment:
     type: object
     required: [type]
     properties:
       type:
         enum: [code, shell, sql, dockerfile, data, logic]
-      lang: { type: string }
+      lang: { type: string, maxLength: 64 }
       body: {}
     additionalProperties: true
 
   # ─── Assertion (§2) ──────────────────────────────────────────────────────
+  # NOTE: additionalProperties is intentionally true — assertion-type-specific
+  # fields (status_pattern, exception, value_equals, contains, etc.) form an
+  # open vocabulary that is validated downstream by the verifier's per-type
+  # contract layer (see DECISIONS.md §2).
   assertion:
     type: object
     required: [type, expect]
@@ -392,9 +434,11 @@ $defs:
         enum: [success, fail]
       module:
         type: string
+        maxLength: 256
         description: "Required when type: custom"
       after_step:
         type: string
+        maxLength: 256
         description: "Binds assertion to a specific action-step id."
       # Type-specific fields (loose — individual types validate internals via
       # additional allOf branches at the platform level).
@@ -421,6 +465,7 @@ $defs:
           - docker_daemon
       primitives_required:
         type: array
+        maxItems: 64
         items:
           enum:
             - sha1
@@ -460,6 +505,7 @@ $defs:
       mutations:
         type: array
         minItems: 2
+        maxItems: 64
         items:
           $ref: "#/$defs/mutation"
       timeout_seconds:
@@ -488,9 +534,11 @@ $defs:
         enum: [replay, reexecute]
       artifact:
         type: string
+        maxLength: 256
         pattern: "^[a-z0-9][a-z0-9.-]+\\.(yaml|json)$"
       steps:
         type: object
+        maxProperties: 256
         additionalProperties:
           $ref: "#/$defs/cassette_step"
       runtime:
@@ -507,38 +555,45 @@ $defs:
             enum: [sqlite, shell, postgres, redis, git, docker]
           version:
             type: string
+            maxLength: 256
             description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
       setup_script:
         type: array
+        maxItems: 256
         description: >
           Reexecute-mode sandbox preparation. Shell commands run once per
           branch (and once per mutation re-run) before any branch action,
           with $-tokens substituted from inputs + $WORKDIR + (when tool is
           sqlite) $DB_PATH. A non-zero exit aborts the branch with
           `setup_script_failed`.
-        items: { type: string }
+        items: { type: string, maxLength: 4096 }
       teardown_script:
         type: array
+        maxItems: 256
         description: >
           Reexecute-mode sandbox cleanup. Shell commands run after each
           branch (and each mutation re-run), even on failure. Exit codes
           are not enforced — teardown is best-effort. The tmpdir is
           os.RemoveAll'd unconditionally afterwards.
-        items: { type: string }
+        items: { type: string, maxLength: 4096 }
       captures:
         type: array
         minItems: 1
-        items: { type: string }
+        maxItems: 256
+        items: { type: string, maxLength: 1024 }
       strips:
         type: array
         minItems: 1
-        items: { type: string }
+        maxItems: 256
+        items: { type: string, maxLength: 1024 }
       replay_targets:
         type: array
         minItems: 1
-        items: { type: string }
+        maxItems: 256
+        items: { type: string, maxLength: 1024 }
       time_model:
         type: object
+        maxProperties: 64
         description: "Simulated clock variables referenced in cassette steps."
       use_real_clock:
         type: boolean
@@ -556,13 +611,23 @@ $defs:
     additionalProperties: false
     required: [request, response]
     properties:
-      request: { type: string }
-      response: { type: string }
+      request: { type: string, maxLength: 65536 }
+      response: { type: string, maxLength: 65536 }
 
   # ─── Differential (§4) ───────────────────────────────────────────────────
+  # NOTE: additionalProperties is intentionally true. The verifier consumes a
+  # known-finite set of keys (inputs, failed/working_branch_must_return,
+  # failed/working_branch_must_raise, failed/working_approach_replay_sequence)
+  # but seed entries in the wild carry additional descriptive keys
+  # (failed_approach_assertion, working_approach_assertion,
+  # failed_approach_must_reach_state, working_branch_must_contain_plan_node,
+  # bounded_wait_max_seconds, …). Flipping to `false` would reject valid
+  # historical entries; the safer narrowing is deferred until the consumed
+  # vs descriptive split is formalised.
   differential:
     type: object
     additionalProperties: true
+    maxProperties: 64
     properties:
       inputs:
         oneOf:
@@ -571,28 +636,32 @@ $defs:
             additionalProperties: false
             required: [failed_approach, working_approach]
             properties:
-              failed_approach: { type: object }
-              working_approach: { type: object }
+              failed_approach: { type: object, maxProperties: 256 }
+              working_approach: { type: object, maxProperties: 256 }
           - type: object
             description: "Shared inputs across both branches."
+            maxProperties: 256
             not:
               required: [failed_approach, working_approach]
-      failed_branch_must_fail_with: { type: string }
+      failed_branch_must_fail_with: { type: string, maxLength: 4096 }
       failed_branch_must_raise: {}
       failed_branch_must_return: {}
       working_branch_must_pass: { type: boolean }
       working_branch_must_return: {}
       failed_approach_replay_sequence:
         type: array
-        items: { type: string }
+        maxItems: 256
+        items: { type: string, maxLength: 256 }
       working_approach_replay_sequence:
         type: array
-        items: { type: string }
-      failed_approach_observation: { type: object }
-      working_approach_observation: { type: object }
+        maxItems: 256
+        items: { type: string, maxLength: 256 }
+      failed_approach_observation: { type: object, maxProperties: 64 }
+      working_approach_observation: { type: object, maxProperties: 64 }
       setup_sequence:
         type: array
-        items: { type: string }
+        maxItems: 256
+        items: { type: string, maxLength: 256 }
 
   # ─── Mutation (§4) ───────────────────────────────────────────────────────
   mutation:
@@ -609,22 +678,24 @@ $defs:
           - mutate_fixture
           - mutate_cassette_response
           - custom
-      target: { type: string }
+      target: { type: string, maxLength: 256 }
       new_value: {}
-      token: { type: string }
+      token: { type: string, maxLength: 256 }
       action:
         type: string
+        maxLength: 256
         description: >
           For mutate_cassette_response, carries the response field selector:
           `body`, `status`, or `header.<NAME>`. For other strategies this slot
           is reserved for future per-strategy use; today it is informational.
-      module: { type: string }
+      module: { type: string, maxLength: 256 }
       branch:
         enum: [failed_approach, working_approach, both]
       expected_result:
         enum: [fail, unchanged, pass, inapplicable]
       expected_branch_outcome:
         type: object
+        maxProperties: 16
         additionalProperties:
           enum: [fail, unchanged, pass, inapplicable, assertion_does_not_match]
     oneOf:
