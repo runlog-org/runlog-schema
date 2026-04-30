@@ -48,6 +48,21 @@ func TestEntrySchemaYAMLReturnsCopy(t *testing.T) {
 	}
 }
 
+// TestManifestSchemaYAMLReturnsCopy mirrors the entry-side guard so a
+// future refactor that drops cloneBytes from ManifestSchemaYAML can't
+// silently regress mutation safety on just one of the two accessors.
+func TestManifestSchemaYAMLReturnsCopy(t *testing.T) {
+	a := ManifestSchemaYAML()
+	if len(a) == 0 {
+		t.Fatal("empty result")
+	}
+	a[0] = 0
+	b := ManifestSchemaYAML()
+	if b[0] == 0 {
+		t.Fatal("ManifestSchemaYAML returned a shared slice; mutation leaked into embedded data")
+	}
+}
+
 // TestEntrySchemaJSONIsValidJSON checks that the JSON form parses
 // cleanly with encoding/json — the basic invariant any downstream
 // jsonschema library will assume.
@@ -116,6 +131,17 @@ func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
 				t.Fatalf("Compile: %v", err)
 			}
 		})
+	}
+}
+
+// TestSchemaVersionMatchesConstant pins the accessor to the constant.
+// Mirrors test_schema_version_matches_constant on the Python side: if
+// the F31 follow-up rewires SchemaVersion() to read from a VERSION
+// file, this test will need to be updated alongside SchemaVersionConst
+// — which is the right coupling.
+func TestSchemaVersionMatchesConstant(t *testing.T) {
+	if got, want := SchemaVersion(), SchemaVersionConst; got != want {
+		t.Errorf("SchemaVersion()=%q, SchemaVersionConst=%q; the two must agree", got, want)
 	}
 }
 
