@@ -15,5 +15,7 @@ generators/python/build/
 generators/python/*.egg-info/
 generators/python/.pytest_cache/
 generators/python/**/__pycache__/
+generators/python/.venv/
+generators/python/venv/
 __pycache__/
 *.pyc

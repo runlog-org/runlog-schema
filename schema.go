@@ -43,17 +43,23 @@ var manifestSchemaYAML []byte
 // can mutate it without affecting the embedded data; the underlying
 // content is stable across calls and safe to treat as a constant.
 func EntrySchemaYAML() []byte {
-	out := make([]byte, len(entrySchemaYAML))
-	copy(out, entrySchemaYAML)
-	return out
+	return cloneBytes(entrySchemaYAML)
 }
 
 // ManifestSchemaYAML returns the canonical session-manifest schema as
 // raw YAML bytes, embedded at build time. See EntrySchemaYAML for
 // mutation semantics.
 func ManifestSchemaYAML() []byte {
-	out := make([]byte, len(manifestSchemaYAML))
-	copy(out, manifestSchemaYAML)
+	return cloneBytes(manifestSchemaYAML)
+}
+
+// cloneBytes returns a fresh copy of src. Used by every accessor that
+// hands embedded schema bytes back to callers, so a caller mutating the
+// returned slice can never poison the embedded data for subsequent
+// callers in the same process.
+func cloneBytes(src []byte) []byte {
+	out := make([]byte, len(src))
+	copy(out, src)
 	return out
 }
 
@@ -66,18 +72,33 @@ func SchemaVersion() string {
 	return SchemaVersionConst
 }
 
-// jsonCache lazily holds the JSON-normalized forms of the embedded
-// schemas. The conversion is deterministic so the cache value is stable
-// for the lifetime of the process; we pay the YAML→JSON round-trip
-// once.
-var (
-	entryJSONOnce sync.Once
-	entryJSON     []byte
-	entryJSONErr  error
+// jsonCache lazily holds the JSON-normalized form of one embedded
+// schema. The conversion is deterministic, so the cached value is
+// stable for the lifetime of the process; we pay the YAML→JSON
+// round-trip once per schema.
+type jsonCache struct {
+	once sync.Once
+	data []byte
+	err  error
+}
 
-	manifestJSONOnce sync.Once
-	manifestJSON     []byte
-	manifestJSONErr  error
+// get returns a fresh copy of the cached JSON bytes, computing them on
+// first call from the supplied YAML source. The returned slice is a
+// fresh copy on every successful call so callers can mutate it without
+// poisoning the cache.
+func (c *jsonCache) get(src []byte) ([]byte, error) {
+	c.once.Do(func() {
+		c.data, c.err = yamlBytesToJSON(src)
+	})
+	if c.err != nil {
+		return nil, c.err
+	}
+	return cloneBytes(c.data), nil
+}
+
+var (
+	entryJSONCache    jsonCache
+	manifestJSONCache jsonCache
 )
 
 // EntrySchemaJSON returns the entry schema normalized to JSON bytes.
@@ -85,29 +106,13 @@ var (
 // that compile from JSON rather than YAML. The result is cached after
 // the first successful call; the returned slice is a fresh copy.
 func EntrySchemaJSON() ([]byte, error) {
-	entryJSONOnce.Do(func() {
-		entryJSON, entryJSONErr = yamlBytesToJSON(entrySchemaYAML)
-	})
-	if entryJSONErr != nil {
-		return nil, entryJSONErr
-	}
-	out := make([]byte, len(entryJSON))
-	copy(out, entryJSON)
-	return out, nil
+	return entryJSONCache.get(entrySchemaYAML)
 }
 
 // ManifestSchemaJSON returns the manifest schema normalized to JSON
 // bytes. See EntrySchemaJSON for caching and copy semantics.
 func ManifestSchemaJSON() ([]byte, error) {
-	manifestJSONOnce.Do(func() {
-		manifestJSON, manifestJSONErr = yamlBytesToJSON(manifestSchemaYAML)
-	})
-	if manifestJSONErr != nil {
-		return nil, manifestJSONErr
-	}
-	out := make([]byte, len(manifestJSON))
-	copy(out, manifestJSON)
-	return out, nil
+	return manifestJSONCache.get(manifestSchemaYAML)
 }
 
 // yamlBytesToJSON parses YAML and re-encodes as canonical JSON. The
