@@ -14,8 +14,7 @@ sibling clone.
 
 ## Install
 
-Once published to PyPI (separate slice — see `[F28]` in the project
-TODO):
+Once published to PyPI (separate slice):
 
 ```bash
 pip install runlog-schema
