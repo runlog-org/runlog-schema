@@ -210,6 +210,11 @@ $defs:
 
   version_pin_subset:
     type: object
+    description: >
+      Subset of version_constraints that claim_scope.applies_when can pin on —
+      intentionally excludes external_services, build_features, spec because
+      asymmetric applicability is only modeled across language/package versions
+      for v1. See DECISIONS §9.
     additionalProperties: false
     properties:
       runtime:
