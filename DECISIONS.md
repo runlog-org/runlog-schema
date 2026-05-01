@@ -300,9 +300,9 @@ assertion:
   pattern_present: "CACHED .* COPY"
 ```
 
-Single-fragment actions remain valid shorthand — a bare `action: { type, body }` is equivalent to `action: { steps: [ { id: main, ... } ] }` with assertion binding to `main`.
+Single-fragment actions remain valid shorthand — a bare `action: { type, body }` is equivalent to `action: { steps: [ { id: main, ... } ] }` with assertion binding to `main`, **provided `type` is in the base set** (`code`, `shell`, `sql`, `dockerfile`, `data`, `logic`). Using `mutation` or `wait` requires the explicit `action.steps` form, because each carries multi-step-only semantics (mutating state between adjacent steps; advancing the cassette clock between them).
 
-Step types: `code`, `shell`, `sql`, `dockerfile`, `mutation`, `wait` (advances the cassette clock in replay mode).
+Step types in `action.steps`: the base set above plus `mutation` (state change between adjacent steps) and `wait` (advances the cassette clock in replay mode). The two enums live as `$defs.step_kind_base` and `$defs.step_kind_action` in `entry.schema.yaml`; `step_fragment.type` references the base, `action_step.type` references the extended set.
 
 ---
 

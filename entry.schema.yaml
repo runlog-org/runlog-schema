@@ -367,6 +367,23 @@ $defs:
       assertion:
         $ref: "#/$defs/assertion"
 
+  # ─── Step kind enums ─────────────────────────────────────────────────────
+  # `step_kind_base` is the shared set valid in any step surface — `setup:`
+  # arrays, single-fragment actions, and step_fragment items inside an action
+  # array. `step_kind_action` extends it with `mutation` and `wait`, which
+  # only have meaning inside an `action_steps_block`: `mutation` changes
+  # state between adjacent steps, `wait` advances the cassette clock between
+  # them. The two enums are deliberately separate so `setup:` and the
+  # shorthand `action: { type, body }` reject `mutation` / `wait` by
+  # construction. See DECISIONS §8.
+  step_kind_base:
+    type: string
+    enum: [code, shell, sql, dockerfile, data, logic]
+
+  step_kind_action:
+    type: string
+    enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
+
   action_steps_block:
     type: object
     required: [steps]
@@ -386,7 +403,7 @@ $defs:
     properties:
       id: { type: string, maxLength: 256, pattern: "^[a-z][a-z0-9-]*$" }
       type:
-        enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
+        $ref: "#/$defs/step_kind_action"
       context:
         type: string
         maxLength: 256
@@ -405,7 +422,7 @@ $defs:
     required: [type]
     properties:
       type:
-        enum: [code, shell, sql, dockerfile, data, logic]
+        $ref: "#/$defs/step_kind_base"
       lang: { type: string, maxLength: 64 }
       body: {}
     additionalProperties: true
