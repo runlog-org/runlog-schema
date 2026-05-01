@@ -40,6 +40,15 @@ git add generators/python/runlog_schema/_data/
 2. Bumping the versioned `$id` URI (`.../v1.json` → `.../v2.json`) is reserved for backward-incompatible revisions; document the rationale in `DECISIONS.md` and coordinate the release across consumers.
 3. Open a PR against `main`. All three CI jobs (`validate-schemas`, `generators-smoke`, `python-generator`) in `.github/workflows/ci.yml` must pass before merge.
 
+## Description style
+
+`description:` fields document author intent for downstream readers (the schema is a contract surface, not just validator input). House style:
+
+- **Inline double-quoted** (`description: "..."`) for values up to ~80 characters. The value is a single sentence ending in a period.
+- **Folded block** (`description: >` followed by indented lines) for longer prose. Reserve `description: |` (literal block) for text where line breaks carry meaning (very rare here).
+- Add a `description:` to every leaf field whose meaning isn't obvious from its name and type. Required fields, `kind: { const: foo }` discriminators, and structural defs that already carry a leading `# ─── …` comment header are exempt.
+- Schema-author intent (why a constraint exists, what's deferred to the verifier) belongs in `# NOTE:` comments, not `description:` — comments are for maintainers, descriptions are for entry authors.
+
 ## Backward compatibility
 
 Downstream consumers pin to a specific schema version. Backward-incompatible changes require a major bump and a coordinated release across `runlog-verifier`, `runlog` (server), and `runlog-skills`.

@@ -168,15 +168,19 @@ $defs:
       name:
         type: string
         maxLength: 256
+        description: "Vendor or product name (e.g. aws-s3, cloudflare-workers)."
       api_version:
         type: string
         maxLength: 256
+        description: "Service-defined API version label (e.g. 2006-03-01, v1)."
       api_endpoint:
         type: string
         maxLength: 1024
+        description: "Optional URL of the service's primary API root."
       spec:
         type: string
         maxLength: 256
+        description: "Identifier of the spec the service implements (e.g. S3, OAuth 2.0)."
 
   build_feature_pin:
     type: object
@@ -186,11 +190,14 @@ $defs:
       name:
         type: string
         maxLength: 256
+        description: "Compile/build feature flag name (e.g. avx2, sqlite_fts5)."
       min_version:
         type: string
         maxLength: 256
+        description: "Minimum runtime/library version that exposes the feature."
       enabled:
         enum: [required, optional]
+        description: "`required` fails verification if absent; `optional` is informational."
 
   spec_anchor:
     type: object
@@ -200,13 +207,15 @@ $defs:
       name:
         type: string
         maxLength: 256
-        description: "Spec name, e.g. RFC 7636"
+        description: "Spec name, e.g. RFC 7636."
       section:
         type: string
         maxLength: 256
+        description: "Section heading or chapter within the spec."
       anchor:
         type: string
         maxLength: 256
+        description: "Stable identifier within the section (e.g. an RFC clause number)."
 
   version_pin_subset:
     type: object
@@ -428,18 +437,34 @@ $defs:
     additionalProperties: false
     required: [id, type]
     properties:
-      id: { type: string, maxLength: 256, pattern: "^[a-z][a-z0-9-]*$" }
+      id:
+        type: string
+        maxLength: 256
+        pattern: "^[a-z][a-z0-9-]*$"
+        description: "Step identifier; assertions bind to this via `after_step:`."
       type:
         $ref: "#/$defs/step_kind_action"
       context:
         type: string
         maxLength: 256
-        description: "References a key in top-level `contexts:`"
-      body: { type: string, maxLength: 65536 }
-      lang: { type: string, maxLength: 64 }
-      change: { type: object, maxProperties: 64 }   # for type: mutation
-      duration_seconds: { type: number }  # for type: wait
-      inputs: {}
+        description: "References a key in top-level `contexts:`."
+      body:
+        type: string
+        maxLength: 65536
+        description: "Step content interpreted per `type` (code, shell, sql, …)."
+      lang:
+        type: string
+        maxLength: 64
+        description: "Language tag for `type: code` (e.g. python, javascript, go)."
+      change:
+        type: object
+        maxProperties: 64
+        description: "Key/value pairs applied between steps; required for `type: mutation`."
+      duration_seconds:
+        type: number
+        description: "Cassette-clock advance in seconds; required for `type: wait`."
+      inputs:
+        description: "Inputs scoped to this step; merged with `differential.inputs`."
 
   # NOTE: additionalProperties is intentionally true — type-specific fields
   # (request, response, resource, action, etc.) vary per step kind and are
@@ -450,8 +475,12 @@ $defs:
     properties:
       type:
         $ref: "#/$defs/step_kind_base"
-      lang: { type: string, maxLength: 64 }
-      body: {}
+      lang:
+        type: string
+        maxLength: 64
+        description: "Language tag for `type: code` (e.g. python, javascript, go)."
+      body:
+        description: "Step content; shape varies by `type` and is validated downstream."
     additionalProperties: true
 
   # ─── Assertion (§2) ──────────────────────────────────────────────────────
