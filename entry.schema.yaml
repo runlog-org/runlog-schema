@@ -315,6 +315,10 @@ $defs:
 
   fixture_http_endpoint:
     type: object
+    description: >
+      Cassette-backed HTTP fixture. Pair with `context.kind: http_endpoint`
+      pointing `endpoint:` at this fixture's `$FIXTURE_*` token. See
+      `$defs/context` for the full pairing table.
     additionalProperties: false
     required: [kind, cassette]
     properties:
@@ -322,6 +326,29 @@ $defs:
       cassette: { type: string, maxLength: 256 }
 
   # ─── Context ─────────────────────────────────────────────────────────────
+  # A context is an execution environment an action_step can run inside (its
+  # `context:` field names a key in top-level `contexts:`). The `kind:` enum
+  # below names the connection or runtime category — it does NOT structurally
+  # bind to a fixture declaration. To wire a context to a fixture, point the
+  # connection-string field (`endpoint:` or `database:`) at a `$FIXTURE_*`
+  # token; submission rule §5 catches missing references at submit time.
+  #
+  # Conventional pairings (advisory — verifier behavior, not schema-enforced):
+  #
+  #   context.kind: sqlite_connection   ↔  fixture kind: sqlite_database
+  #   context.kind: postgres_connection ↔  fixture kind: postgres_database
+  #   context.kind: redis_connection    ↔  fixture kind: redis_instance
+  #   context.kind: http_endpoint       ↔  fixture kind: http_endpoint
+  #   context.kind: docker_container    ↔  fixture kind: docker_context
+  #   context.kind: subprocess          ↔  (no specific fixture; uses
+  #                                          fixture_directory or sparse_file
+  #                                          for working files)
+  #   context.kind: browser_tab         ↔  (no specific fixture; uses
+  #                                          cassette for replay)
+  #
+  # The decoupling is deliberate: a context can also point at a real running
+  # service (e.g. an integration-tier `http_endpoint` against a cassetted
+  # third-party API with no local fixture) where there is nothing to declare.
   context:
     type: object
     additionalProperties: false
