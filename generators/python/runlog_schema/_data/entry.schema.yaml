@@ -583,6 +583,8 @@ $defs:
         $ref: "#/$defs/cassette"
       differential:
         $ref: "#/$defs/differential"
+      differential_observations:
+        $ref: "#/$defs/differential_observations"
       mutations:
         type: array
         minItems: 2
@@ -696,18 +698,23 @@ $defs:
       response: { type: string, maxLength: 65536 }
 
   # ─── Differential (§4) ───────────────────────────────────────────────────
-  # NOTE: additionalProperties is intentionally true. The verifier consumes a
-  # known-finite set of keys (inputs, failed/working_branch_must_return,
-  # failed/working_branch_must_raise, failed/working_approach_replay_sequence)
-  # but seed entries in the wild carry additional descriptive keys
-  # (failed_approach_assertion, working_approach_assertion,
-  # failed_approach_must_reach_state, working_branch_must_contain_plan_node,
-  # bounded_wait_max_seconds, …). Flipping to `false` would reject valid
-  # historical entries; the safer narrowing is deferred until the consumed
-  # vs descriptive split is formalised.
+  # The closed, consumed half of the differential block. Every property
+  # listed here is read by the Go verifier in
+  # runlog-verifier/internal/verify/{shape,spec,integration,mutate}.go.
+  # `additionalProperties: false` catches typos in load-bearing keys at
+  # validation time — without the closure, a misspelled
+  # `failed_branch_must_returns` would land in the open bag and the
+  # verifier's matchOutcome would silently treat the branch as having no
+  # expectation declared (spec.go:26 "no expectation declared — accept
+  # silently"), bypassing the negative-falsifiability check.
+  #
+  # Free-form descriptive keys (failed_approach_assertion,
+  # working_approach_observation, setup_sequence,
+  # working_branch_must_contain_plan_node, …) belong in the sibling
+  # `differential_observations` block; see below.
   differential:
     type: object
-    additionalProperties: true
+    additionalProperties: false
     maxProperties: 64
     properties:
       inputs:
@@ -724,11 +731,18 @@ $defs:
             maxProperties: 256
             not:
               required: [failed_approach, working_approach]
-      failed_branch_must_fail_with: { type: string, maxLength: 4096 }
       failed_branch_must_raise: {}
       failed_branch_must_return: {}
-      working_branch_must_pass: { type: boolean }
+      working_branch_must_raise: {}
       working_branch_must_return: {}
+      failed_branch_must_fail_with:
+        type: string
+        maxLength: 4096
+        description: >
+          Reserved for a v0.2 verifier slice. Not consumed by v0.1 — see
+          spec.go:28 ("failed_branch_must_fail_with is a separate spec
+          key, deferred"). Submitters can set it for future tooling but
+          it has no current effect on verification outcome.
       failed_approach_replay_sequence:
         type: array
         maxItems: 256
@@ -737,12 +751,22 @@ $defs:
         type: array
         maxItems: 256
         items: { type: string, maxLength: 256 }
-      failed_approach_observation: { type: object, maxProperties: 64 }
-      working_approach_observation: { type: object, maxProperties: 64 }
-      setup_sequence:
-        type: array
-        maxItems: 256
-        items: { type: string, maxLength: 256 }
+
+  # ─── Differential observations (§4) ──────────────────────────────────────
+  # Open bag for descriptive keys that document the differential test in
+  # human terms but are NOT read by the verifier or server. Today's seed
+  # corpus uses keys like failed_approach_assertion,
+  # working_approach_assertion, failed_approach_observation,
+  # working_approach_observation, setup_sequence, and
+  # working_branch_must_contain_plan_node here. New descriptive keys are
+  # accepted without schema changes — that's by design. If a key here
+  # later becomes load-bearing (the verifier wants to enforce it), it
+  # gets promoted into `differential` with a typed declaration, and seeds
+  # move it across in the same release.
+  differential_observations:
+    type: object
+    additionalProperties: true
+    maxProperties: 64
 
   # ─── Mutation (§4) ───────────────────────────────────────────────────────
   mutation:
