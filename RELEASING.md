@@ -25,20 +25,24 @@ This repo ships two distributions from the same tag:
    The next release accumulates the breaking T31 + T18 changes already
    on `main` (build_feature_pin → pin_strength rename; differential
    split into closed `consumed` + open `observations`), so the next
-   tag is `schema/v0.2.0`.
+   tag is `v0.2.0`.
 
-3. Tag and push. The new convention is the path-scoped shape
-   `schema/vX.Y.Z` (per the M02 release-train discipline — see
-   [`runlog-docs/13-release-trains.md`](https://github.com/runlog-org/runlog-docs/blob/main/13-release-trains.md));
-   the legacy plain `vX.Y.Z` is still accepted as a soft cut so
-   existing consumers keep working:
+3. Tag and push. The canonical shape is plain `vX.Y.Z`: this repo's
+   `go.mod` lives at the repo root, and Go's module proxy
+   (`proxy.golang.org` / `pkg.go.dev`) only resolves tags shaped
+   `<module-root>/vX.Y.Z` — a path-scoped `schema/vX.Y.Z` tag is
+   invisible to the proxy and consumers cannot `go get` against it.
+   The path-scoped shape is the M02 release-train default for this
+   org, but the Go-module-at-root carve-out documented in
+   [`runlog-docs/13-release-trains.md`](https://github.com/runlog-org/runlog-docs/blob/main/13-release-trains.md)
+   pins this repo to plain `v*`. The release workflow accepts
+   `schema/v*` too as a soft cut, but it is not recommended:
 
-       git tag -a schema/v0.2.0 -m "Release schema/v0.2.0"
-       git push origin schema/v0.2.0
+       git tag -a v0.2.0 -m "Release v0.2.0"
+       git push origin v0.2.0
 
-   Tags matching `*-rc*`, `*-beta*`, or `*-alpha*` (e.g.
-   `schema/v0.2.0-rc1`) ship as **prereleases**; everything else ships
-   as a normal release.
+   Tags matching `*-rc*`, `*-beta*`, or `*-alpha*` (e.g. `v0.2.0-rc1`)
+   ship as **prereleases**; everything else ships as a normal release.
 
 4. Watch the workflow on GitHub Actions. On success:
    - The tag appears on the Releases page with auto-generated notes.
@@ -84,10 +88,11 @@ repo's GitHub Actions secrets.
 
 **Go module:**
 
-    go get github.com/runlog-org/runlog-schema@schema/v0.2.0
+    go get github.com/runlog-org/runlog-schema@v0.2.0
 
-The Go toolchain accepts the path-scoped tag shape directly; legacy
-`@v0.1.0` pins also still resolve.
+Plain `v*` is the canonical pin shape (Go's module proxy resolves it
+directly because `go.mod` lives at the repo root); existing `@v0.1.0`
+pins continue to resolve unchanged.
 
 **Python package:**
 
@@ -100,7 +105,7 @@ Or in `pyproject.toml`:
 **Schema YAMLs (server / verifier loading raw files):** consumers that
 read `*.schema.yaml` directly should pin to a tag in their loader (the
 exact mechanism is consumer-specific — e.g. a checkout of this repo at
-`schema/v0.2.0`). Pinning to `main` works for development but exposes
+`v0.2.0`). Pinning to `main` works for development but exposes
 consumers to mid-stream additions; tags are the supported contract.
 
 ## Versioning policy
