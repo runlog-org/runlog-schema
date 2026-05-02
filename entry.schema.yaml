@@ -185,7 +185,7 @@ $defs:
   build_feature_pin:
     type: object
     additionalProperties: false
-    required: [name]
+    required: [name, pin_strength]
     properties:
       name:
         type: string
@@ -195,9 +195,12 @@ $defs:
         type: string
         maxLength: 256
         description: "Minimum runtime/library version that exposes the feature."
-      enabled:
+      pin_strength:
         enum: [required, optional]
-        description: "`required` fails verification if absent; `optional` is informational."
+        description: >
+          Whether the pin is load-bearing for verification. `required` fails
+          verification if the build feature is absent at run-verify time;
+          `optional` is informational only.
 
   spec_anchor:
     type: object
