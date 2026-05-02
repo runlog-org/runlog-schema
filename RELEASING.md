@@ -72,8 +72,9 @@ If `runlog-schema` does not yet exist on PyPI:
    - **Owner**: `runlog-org`
    - **Repository name**: `runlog-schema`
    - **Workflow name**: `release.yml`
-   - **Environment name**: *(leave blank — the workflow does not use
-     a GitHub environment)*
+   - **Environment name**: `pypi` — must match the `environment:`
+     declared on the `release` job in `.github/workflows/release.yml`,
+     or PyPI's OIDC verification rejects the token.
 
 If the project already exists on PyPI (claimed under a one-shot API
 token, or migrated from an older publish path), do the same dance under

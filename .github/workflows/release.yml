@@ -124,6 +124,13 @@ jobs:
     permissions:
       contents: write    # required for softprops/action-gh-release
       id-token: write    # required for PyPI OIDC trusted publishing
+    # PyPI's trusted-publisher OIDC verification matches on the
+    # `environment` claim in the GitHub-issued token; without an
+    # `environment:` here that claim is absent and PyPI rejects the
+    # token as `invalid-publisher: ... no corresponding publisher`.
+    # The env name is `pypi` for clarity; it must match what's
+    # registered on PyPI's Manage project → Publishing page.
+    environment: pypi
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
