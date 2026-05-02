@@ -29,9 +29,9 @@ This repo ships two distributions from the same tag:
 
 3. Tag and push. The new convention is the path-scoped shape
    `schema/vX.Y.Z` (per the M02 release-train discipline — see
-   `// TODO link runlog-docs/13-release-trains.md`); the legacy plain
-   `vX.Y.Z` is still accepted as a soft cut so existing consumers keep
-   working:
+   [`runlog-docs/13-release-trains.md`](https://github.com/runlog-org/runlog-docs/blob/main/13-release-trains.md));
+   the legacy plain `vX.Y.Z` is still accepted as a soft cut so
+   existing consumers keep working:
 
        git tag -a schema/v0.2.0 -m "Release schema/v0.2.0"
        git push origin schema/v0.2.0
