@@ -168,15 +168,19 @@ $defs:
       name:
         type: string
         maxLength: 256
+        description: "Vendor or product name (e.g. aws-s3, cloudflare-workers)."
       api_version:
         type: string
         maxLength: 256
+        description: "Service-defined API version label (e.g. 2006-03-01, v1)."
       api_endpoint:
         type: string
         maxLength: 1024
+        description: "Optional URL of the service's primary API root."
       spec:
         type: string
         maxLength: 256
+        description: "Identifier of the spec the service implements (e.g. S3, OAuth 2.0)."
 
   build_feature_pin:
     type: object
@@ -186,11 +190,14 @@ $defs:
       name:
         type: string
         maxLength: 256
+        description: "Compile/build feature flag name (e.g. avx2, sqlite_fts5)."
       min_version:
         type: string
         maxLength: 256
+        description: "Minimum runtime/library version that exposes the feature."
       enabled:
         enum: [required, optional]
+        description: "`required` fails verification if absent; `optional` is informational."
 
   spec_anchor:
     type: object
@@ -200,13 +207,15 @@ $defs:
       name:
         type: string
         maxLength: 256
-        description: "Spec name, e.g. RFC 7636"
+        description: "Spec name, e.g. RFC 7636."
       section:
         type: string
         maxLength: 256
+        description: "Section heading or chapter within the spec."
       anchor:
         type: string
         maxLength: 256
+        description: "Stable identifier within the section (e.g. an RFC clause number)."
 
   version_pin_subset:
     type: object
@@ -315,6 +324,10 @@ $defs:
 
   fixture_http_endpoint:
     type: object
+    description: >
+      Cassette-backed HTTP fixture. Pair with `context.kind: http_endpoint`
+      pointing `endpoint:` at this fixture's `$FIXTURE_*` token. See
+      `$defs/context` for the full pairing table.
     additionalProperties: false
     required: [kind, cassette]
     properties:
@@ -322,6 +335,29 @@ $defs:
       cassette: { type: string, maxLength: 256 }
 
   # ─── Context ─────────────────────────────────────────────────────────────
+  # A context is an execution environment an action_step can run inside (its
+  # `context:` field names a key in top-level `contexts:`). The `kind:` enum
+  # below names the connection or runtime category — it does NOT structurally
+  # bind to a fixture declaration. To wire a context to a fixture, point the
+  # connection-string field (`endpoint:` or `database:`) at a `$FIXTURE_*`
+  # token; submission rule §5 catches missing references at submit time.
+  #
+  # Conventional pairings (advisory — verifier behavior, not schema-enforced):
+  #
+  #   context.kind: sqlite_connection   ↔  fixture kind: sqlite_database
+  #   context.kind: postgres_connection ↔  fixture kind: postgres_database
+  #   context.kind: redis_connection    ↔  fixture kind: redis_instance
+  #   context.kind: http_endpoint       ↔  fixture kind: http_endpoint
+  #   context.kind: docker_container    ↔  fixture kind: docker_context
+  #   context.kind: subprocess          ↔  (no specific fixture; uses
+  #                                          fixture_directory or sparse_file
+  #                                          for working files)
+  #   context.kind: browser_tab         ↔  (no specific fixture; uses
+  #                                          cassette for replay)
+  #
+  # The decoupling is deliberate: a context can also point at a real running
+  # service (e.g. an integration-tier `http_endpoint` against a cassetted
+  # third-party API with no local fixture) where there is nothing to declare.
   context:
     type: object
     additionalProperties: false
@@ -367,6 +403,23 @@ $defs:
       assertion:
         $ref: "#/$defs/assertion"
 
+  # ─── Step kind enums ─────────────────────────────────────────────────────
+  # `step_kind_base` is the shared set valid in any step surface — `setup:`
+  # arrays, single-fragment actions, and step_fragment items inside an action
+  # array. `step_kind_action` extends it with `mutation` and `wait`, which
+  # only have meaning inside an `action_steps_block`: `mutation` changes
+  # state between adjacent steps, `wait` advances the cassette clock between
+  # them. The two enums are deliberately separate so `setup:` and the
+  # shorthand `action: { type, body }` reject `mutation` / `wait` by
+  # construction. See DECISIONS §8.
+  step_kind_base:
+    type: string
+    enum: [code, shell, sql, dockerfile, data, logic]
+
+  step_kind_action:
+    type: string
+    enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
+
   action_steps_block:
     type: object
     required: [steps]
@@ -384,18 +437,34 @@ $defs:
     additionalProperties: false
     required: [id, type]
     properties:
-      id: { type: string, maxLength: 256, pattern: "^[a-z][a-z0-9-]*$" }
+      id:
+        type: string
+        maxLength: 256
+        pattern: "^[a-z][a-z0-9-]*$"
+        description: "Step identifier; assertions bind to this via `after_step:`."
       type:
-        enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
+        $ref: "#/$defs/step_kind_action"
       context:
         type: string
         maxLength: 256
-        description: "References a key in top-level `contexts:`"
-      body: { type: string, maxLength: 65536 }
-      lang: { type: string, maxLength: 64 }
-      change: { type: object, maxProperties: 64 }   # for type: mutation
-      duration_seconds: { type: number }  # for type: wait
-      inputs: {}
+        description: "References a key in top-level `contexts:`."
+      body:
+        type: string
+        maxLength: 65536
+        description: "Step content interpreted per `type` (code, shell, sql, …)."
+      lang:
+        type: string
+        maxLength: 64
+        description: "Language tag for `type: code` (e.g. python, javascript, go)."
+      change:
+        type: object
+        maxProperties: 64
+        description: "Key/value pairs applied between steps; required for `type: mutation`."
+      duration_seconds:
+        type: number
+        description: "Cassette-clock advance in seconds; required for `type: wait`."
+      inputs:
+        description: "Inputs scoped to this step; merged with `differential.inputs`."
 
   # NOTE: additionalProperties is intentionally true — type-specific fields
   # (request, response, resource, action, etc.) vary per step kind and are
@@ -405,9 +474,13 @@ $defs:
     required: [type]
     properties:
       type:
-        enum: [code, shell, sql, dockerfile, data, logic]
-      lang: { type: string, maxLength: 64 }
-      body: {}
+        $ref: "#/$defs/step_kind_base"
+      lang:
+        type: string
+        maxLength: 64
+        description: "Language tag for `type: code` (e.g. python, javascript, go)."
+      body:
+        description: "Step content; shape varies by `type` and is validated downstream."
     additionalProperties: true
 
   # ─── Assertion (§2) ──────────────────────────────────────────────────────
