@@ -1,0 +1,178 @@
+name: release
+
+# Tag-based release workflow for the runlog-schema repo.
+#
+# Two distributions ship from this repo:
+#   - The Go module `github.com/runlog-org/runlog-schema` (root go.mod).
+#     pkg.go.dev resolves any tag push automatically, so no workflow
+#     step is needed for the Go side — pushing the tag is the publish.
+#   - The Python package `runlog-schema` (under generators/python/).
+#     This workflow builds the sdist + wheel and publishes to PyPI via
+#     OIDC trusted publishing (no API token stored in repo secrets).
+#
+# Tags are accepted in two shapes (soft cut for the M02 release-train
+# discipline): legacy `vX.Y.Z` and the new path-scoped `schema/vX.Y.Z`.
+# Plain `v*` consumers stay valid; new releases use the prefixed shape.
+#
+# A maintainer cuts a release by pushing the tag. `workflow_dispatch`
+# is wired up too as a manual smoke-run path that exercises the
+# pre-flight validator without creating a Release or publishing to
+# PyPI (the `release` job's `if:` guards skip both when the trigger
+# isn't a tag push).
+
+on:
+  push:
+    tags: ["v*", "schema/v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Action versions are pinned to full commit SHAs (not floating major
+# tags) so a compromised tag on a third-party action repo can't ship
+# malicious release logic into this schema repo. Update by bumping
+# the SHA and the trailing comment together. SHAs below resolve to:
+#   actions/checkout@v4              -> 34e114876b0b11c390a56381ad16ebd13914f8d5
+#   actions/setup-python@v5          -> a26af69be951a213d495a4c3e4e4022e16d87065
+#   softprops/action-gh-release@v2   -> 3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+#
+# Exception: pypa/gh-action-pypi-publish is pinned to the `release/v1`
+# branch tag rather than a commit SHA. That's the upstream-recommended
+# pin (see https://github.com/pypa/gh-action-pypi-publish#readme):
+# the action itself runs in a hardened container and the `release/v1`
+# ref is what PyPI's trusted-publisher OIDC config matches against.
+# Pinning a SHA would break OIDC verification on every action update.
+
+jobs:
+  pre-flight:
+    # Re-run the same schema validator the CI workflow's validate-schemas
+    # job runs on push/PR. Catching a broken *.schema.yaml on the tag
+    # commit here, before the Release is created and PyPI is published,
+    # is much cheaper than shipping a bad version and yanking it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validator deps
+        run: pip install --upgrade pyyaml jsonschema
+
+      # Identical to ci.yml's validate-schemas step. The schemas are
+      # YAML *of* a JSON Schema; we verify both that each file is
+      # well-formed YAML and that the loaded structure is a syntactically
+      # valid JSON Schema (Draft 2020-12 per $schema). A broken root
+      # contract would silently propagate to verifier, server, and
+      # skills, so this gate must fail loudly.
+      - name: Validate *.schema.yaml
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+          from jsonschema import Draft202012Validator
+
+          failed = False
+          for path in sorted(glob.glob("*.schema.yaml")):
+              try:
+                  with open(path) as fp:
+                      schema = yaml.safe_load(fp)
+              except yaml.YAMLError as e:
+                  print(f"::error file={path}::YAML parse error: {e}")
+                  failed = True
+                  continue
+              try:
+                  Draft202012Validator.check_schema(schema)
+              except Exception as e:
+                  print(f"::error file={path}::Invalid JSON Schema: {e}")
+                  failed = True
+                  continue
+              print(f"{path}: OK")
+          sys.exit(1 if failed else 0)
+          PY
+
+  release:
+    needs: pre-flight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # required for softprops/action-gh-release
+      id-token: write    # required for PyPI OIDC trusted publishing
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          # Full history so generate_release_notes can compute the
+          # commit/PR delta from the previous tag.
+          fetch-depth: 0
+
+      - name: Resolve prerelease flag
+        id: meta
+        # Only meaningful when this run is a tag push, but cheap to
+        # compute either way; the gh-release step is itself gated.
+        if: startsWith(github.ref, 'refs/tags/')
+        # GITHUB_REF is the standard env var GitHub Actions injects
+        # for the triggering ref. Using it (not ${{ github.ref }}
+        # interpolated into the script body) keeps untrusted-looking
+        # input out of the shell command surface.
+        run: |
+          ref="${GITHUB_REF##*/}"
+          # Tags like v0.1.0-rc1, v0.1.0-beta2, v0.1.0-alpha1 (and
+          # their schema/v0.1.0-rc1 equivalents) publish as prereleases
+          # — visible but flagged; plain semver tags publish as full
+          # releases.
+          case "$ref" in
+            *-rc*|*-beta*|*-alpha*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
+            *)                      echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Create GitHub Release
+        # Only create the Release on an actual tag push. A
+        # workflow_dispatch run gets the validator pass above but
+        # stops short of publishing — useful for verifying the
+        # workflow itself is healthy without burning a version number.
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        with:
+          # `name` defaults to the tag, `tag_name` defaults to the
+          # pushed ref — both implicit. No `files:` block: the source
+          # archive GitHub auto-attaches plus the PyPI artefacts are
+          # the deliverables.
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+
+      - name: Set up Python (build)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build frontend
+        run: pip install --upgrade build
+
+      - name: Build sdist + wheel
+        # The Python package lives under generators/python/ (see
+        # DECISIONS.md "Distribution: Python package layout (F28c)").
+        # `python -m build` writes the sdist + wheel into
+        # generators/python/dist/, which the publish step uploads.
+        working-directory: generators/python
+        run: python -m build
+
+      - name: Publish to PyPI (OIDC trusted publishing)
+        # Gated on tag push so workflow_dispatch is a true smoke run:
+        # the build above also runs on workflow_dispatch (proving the
+        # package builds), but we don't want a smoke run to consume
+        # a real PyPI version slot.
+        if: startsWith(github.ref, 'refs/tags/')
+        # `release/v1` is the upstream-recommended ref (see file-level
+        # comment for rationale). With `id-token: write` granted at
+        # the job level and no `password:` set, the action exchanges
+        # the GitHub OIDC token for a short-lived PyPI upload token —
+        # no API token in repo secrets.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: generators/python/dist
