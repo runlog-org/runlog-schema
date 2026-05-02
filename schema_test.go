@@ -134,11 +134,9 @@ func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
 	}
 }
 
-// TestSchemaVersionMatchesConstant pins the accessor to the constant.
-// Mirrors test_schema_version_matches_constant on the Python side: if
-// the F31 follow-up rewires SchemaVersion() to read from a VERSION
-// file, this test will need to be updated alongside SchemaVersionConst
-// — which is the right coupling.
+// TestSchemaVersionMatchesConstant pins the accessor to the constant,
+// which itself sources from the embedded VERSION file. Mirrors
+// test_schema_version_matches_constant on the Python side.
 func TestSchemaVersionMatchesConstant(t *testing.T) {
 	if got, want := SchemaVersion(), SchemaVersionConst; got != want {
 		t.Errorf("SchemaVersion()=%q, SchemaVersionConst=%q; the two must agree", got, want)

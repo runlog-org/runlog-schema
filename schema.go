@@ -17,20 +17,20 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
 )
 
-// SchemaVersionConst is the current schema version exposed by SchemaVersion.
-//
-// Source of truth today: this constant. Both schema files carry a
-// versioned $id (".../v1.json"), so v1 is the honest current value.
-//
-// TODO(F31): once the release-train work lands, derive this from a
-// VERSION file at the repo root rather than a hardcoded constant so the
-// release-train can bump it atomically alongside the schema $id changes.
-const SchemaVersionConst = "0.1.0"
+//go:embed VERSION
+var versionBytes []byte
+
+// SchemaVersionConst is the current schema version, sourced from the
+// VERSION file at the repo root. The VERSION file is the single source
+// of truth for the version across the Go module, the Python package's
+// pyproject.toml, and the Python module's SCHEMA_VERSION constant.
+var SchemaVersionConst = strings.TrimSpace(string(versionBytes))
 
 //go:embed entry.schema.yaml
 var entrySchemaYAML []byte
@@ -63,11 +63,9 @@ func cloneBytes(src []byte) []byte {
 	return out
 }
 
-// SchemaVersion returns the current schema version string. Today this
-// is a hardcoded constant matching the versioned $id in the YAML files
-// (v1 → "0.1.0" as the first publishable Go-module tag). See
-// SchemaVersionConst for the F31 follow-up to source this from a
-// VERSION file.
+// SchemaVersion returns the current schema version string, sourced
+// from the embedded VERSION file at the repo root via
+// SchemaVersionConst.
 func SchemaVersion() string {
 	return SchemaVersionConst
 }

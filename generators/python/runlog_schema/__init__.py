@@ -38,11 +38,14 @@ __all__ = [
     "schema_version",
 ]
 
-# Source of truth today: this constant. Both schema files carry a
-# versioned $id (".../v1.json"), so v1 is the honest current value.
-# Mirrors Go's SchemaVersionConst. F31 will derive this from a VERSION
-# file at the repo root once the release-train work lands.
-SCHEMA_VERSION: str = "0.1.0"
+# Sourced from the bundled VERSION file under runlog_schema/_data/,
+# which mirrors the canonical VERSION at the repo root (synced by
+# generators/python/scripts/sync_schemas.sh, gated in CI byte-for-byte
+# the same way the YAML schemas are gated). Mirrors Go's
+# SchemaVersionConst, which embeds the same repo-root VERSION.
+SCHEMA_VERSION: str = (
+    (files(__package__) / "_data" / "VERSION").read_text().strip()
+)
 
 
 def _read_data(name: str) -> bytes:

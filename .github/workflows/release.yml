@@ -96,12 +96,41 @@ jobs:
           sys.exit(1 if failed else 0)
           PY
 
+      # Single-source VERSION (T37): the repo-root VERSION file drives
+      # the Go SchemaVersionConst, the Python package version, and the
+      # Python module SCHEMA_VERSION. Gate at release time that VERSION
+      # matches the pushed tag's semver so a forgotten bump can't ship
+      # a mismatched release. Handles both v* and schema/v* tag shapes.
+      # Uses the GITHUB_REF env var (not the ref expression interpolated
+      # into the script body) to keep untrusted-looking input out of the
+      # shell command surface.
+      - name: VERSION matches pushed tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          file_version=$(tr -d '[:space:]' < VERSION)
+          tag_ref="${GITHUB_REF##refs/tags/}"
+          tag_ref="${tag_ref#schema/}"
+          tag_version="${tag_ref#v}"
+          if [ "$file_version" != "$tag_version" ]; then
+            echo "::error file=VERSION::VERSION ($file_version) does not match pushed tag ($tag_version)" >&2
+            exit 1
+          fi
+          echo "VERSION ($file_version) matches tag (${tag_ref})"
+
   release:
     needs: pre-flight
     runs-on: ubuntu-latest
     permissions:
       contents: write    # required for softprops/action-gh-release
       id-token: write    # required for PyPI OIDC trusted publishing
+    # PyPI's trusted-publisher OIDC verification matches on the
+    # `environment` claim in the GitHub-issued token; without an
+    # `environment:` here that claim is absent and PyPI rejects the
+    # token as `invalid-publisher: ... no corresponding publisher`.
+    # The env name is `pypi` for clarity; it must match what's
+    # registered on PyPI's Manage project → Publishing page.
+    environment: pypi
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
