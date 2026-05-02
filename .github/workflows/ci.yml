@@ -105,13 +105,16 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      # Bundled copies must match the canonical schemas byte-for-byte.
-      # If they don't, run `bash generators/python/scripts/sync_schemas.sh`
-      # locally and commit the result alongside the schema edit.
+      # Bundled copies must match the canonical files byte-for-byte:
+      # the two YAML schemas plus VERSION (which drives both the Go
+      # SchemaVersionConst and the Python package's version + module
+      # SCHEMA_VERSION constant). If any drift, run
+      # `bash generators/python/scripts/sync_schemas.sh` locally and
+      # commit the result alongside the canonical edit.
       - name: Bundled schemas match canonical
         run: |
           set -e
-          for f in entry.schema.yaml manifest.schema.yaml; do
+          for f in entry.schema.yaml manifest.schema.yaml VERSION; do
             if ! cmp -s "$f" "generators/python/runlog_schema/_data/$f"; then
               echo "::error file=generators/python/runlog_schema/_data/$f::drifted from canonical $f; run generators/python/scripts/sync_schemas.sh"
               diff -u "$f" "generators/python/runlog_schema/_data/$f" || true

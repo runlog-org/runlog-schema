@@ -11,7 +11,7 @@
 
 [project]
 name = "runlog-schema"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Canonical YAML schemas for Runlog entries and session manifests"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -58,6 +58,15 @@ build-backend = "hatchling.build"
 # new Python packages in 2025 use. Setuptools would also work but
 # carries legacy baggage (MANIFEST.in, package_data quirks); flit
 # can't include arbitrary data dirs cleanly.
+# Single-source the version from the bundled VERSION file under
+# runlog_schema/_data/, which is itself a synced copy of the canonical
+# VERSION at the repo root (see scripts/sync_schemas.sh, gated in CI).
+# Hatchling's regex source is built-in — no extra build-system requires.
+[tool.hatch.version]
+source = "regex"
+path = "runlog_schema/_data/VERSION"
+pattern = "^(?P<version>.+)$"
+
 [tool.hatch.build.targets.wheel]
 packages = ["runlog_schema"]
 

@@ -19,11 +19,11 @@ data_dir="${repo_root}/generators/python/runlog_schema/_data"
 
 mkdir -p "${data_dir}"
 
-for f in entry.schema.yaml manifest.schema.yaml; do
+for f in entry.schema.yaml manifest.schema.yaml VERSION; do
     src="${repo_root}/${f}"
     dst="${data_dir}/${f}"
     if [[ ! -f "${src}" ]]; then
-        echo "::error::canonical schema missing at ${src}" >&2
+        echo "::error::canonical file missing at ${src}" >&2
         exit 1
     fi
     cp -f "${src}" "${dst}"
