@@ -289,6 +289,10 @@ $defs:
 
   fixture_sqlite_database:
     type: object
+    description: >
+      SQLite database fixture. Pair with `context.kind: sqlite_connection`
+      pointing `database:` at this fixture's `$FIXTURE_*` token. See
+      `$defs/context` for the full pairing table.
     additionalProperties: false
     required: [kind]
     properties:
@@ -299,6 +303,10 @@ $defs:
 
   fixture_postgres_database:
     type: object
+    description: >
+      Postgres database fixture. Pair with `context.kind: postgres_connection`
+      pointing `database:` at this fixture's `$FIXTURE_*` token. See
+      `$defs/context` for the full pairing table.
     additionalProperties: false
     required: [kind]
     properties:
@@ -309,6 +317,10 @@ $defs:
 
   fixture_redis_instance:
     type: object
+    description: >
+      Redis instance fixture. Pair with `context.kind: redis_connection`
+      pointing `endpoint:` at this fixture's `$FIXTURE_*` token. See
+      `$defs/context` for the full pairing table.
     additionalProperties: false
     required: [kind]
     properties:
@@ -318,6 +330,11 @@ $defs:
 
   fixture_docker_context:
     type: object
+    description: >
+      Docker build/runtime context fixture (Dockerfile + supporting files).
+      Pair with `context.kind: docker_container` pointing `endpoint:` at this
+      fixture's `$FIXTURE_*` token. See `$defs/context` for the full pairing
+      table.
     additionalProperties: false
     required: [kind, files]
     properties:
@@ -375,10 +392,35 @@ $defs:
           - browser_tab
           - subprocess
           - docker_container
-      database: { type: string, maxLength: 1024 }
-      endpoint: { type: string, maxLength: 1024 }
-      pragmas: { type: object, maxProperties: 64 }
-      config: { type: object, maxProperties: 64 }
+      database:
+        type: string
+        maxLength: 1024
+        description: >
+          Reference to a `fixture_sqlite_database` or `fixture_postgres_database`
+          by `$FIXTURE_*` token (load-bearing — the verifier resolves it when
+          dispatching the branch's actions).
+      endpoint:
+        type: string
+        maxLength: 1024
+        description: >
+          Reference to a `fixture_redis_instance`, `fixture_http_endpoint`, or
+          `fixture_docker_context` by `$FIXTURE_*` token, or a real service URL
+          (load-bearing — the verifier resolves it when dispatching the branch's
+          actions).
+      pragmas:
+        type: object
+        maxProperties: 64
+        description: >
+          SQLite PRAGMA overrides applied to the connection (paired with
+          `kind: sqlite_connection`); load-bearing for the verifier's branch
+          execution.
+      config:
+        type: object
+        maxProperties: 64
+        description: >
+          Connection-level config overrides (paired with `kind: redis_connection`,
+          and reserved for other connection kinds); load-bearing for the
+          verifier's branch execution.
 
   # ─── Branch (failed_approach / working_approach) ─────────────────────────
   branch:
@@ -622,6 +664,10 @@ $defs:
       steps:
         type: object
         maxProperties: 256
+        description: >
+          Map of named request/response pairs keyed by step name. Step names
+          are referenced from `branches.*.action[*].step` to pin a specific
+          replay frame. See DECISIONS §3 for the cassette-step contract.
         additionalProperties:
           $ref: "#/$defs/cassette_step"
       runtime:
@@ -771,6 +817,27 @@ $defs:
   # ─── Mutation (§4) ───────────────────────────────────────────────────────
   mutation:
     type: object
+    description: >
+      Falsifiability probe — flips one element of the working_approach branch
+      and asserts the resulting outcome. Several fields are strategy-dependent:
+
+        strategy: set_literal_value     — uses `target` (the `$LITERAL_*` token)
+                                          and `new_value`.
+        strategy: remove_kwarg          — uses `target` (the kwarg name).
+        strategy: swap_identifier       — uses `target` and `new_value` (old/new
+                                          identifier names).
+        strategy: drop_flag             — uses `target` (the flag).
+        strategy: swap_function_call    — uses `target` and `new_value` (old/new
+                                          callable names).
+        strategy: mutate_fixture        — uses `target` (the `$FIXTURE_*` token),
+                                          `token` (path inside the fixture), and
+                                          `new_value`.
+        strategy: mutate_cassette_response — uses `target` (the cassette step
+                                          name), `action` (response selector:
+                                          `body`, `status`, or `header.<NAME>`),
+                                          and `new_value`.
+        strategy: custom                — requires `module`; the named module
+                                          implements the mutation.
     required: [strategy, target]
     properties:
       strategy:
@@ -783,26 +850,48 @@ $defs:
           - mutate_fixture
           - mutate_cassette_response
           - custom
-      target: { type: string, maxLength: 256 }
-      new_value: {}
-      token: { type: string, maxLength: 256 }
+        description: "Mutation kind. See the per-strategy field matrix on this object's description."
+      target:
+        type: string
+        maxLength: 256
+        description: >
+          Strategy-dependent target selector — a `$LITERAL_*` token, kwarg name,
+          identifier, flag, `$FIXTURE_*` token, or cassette step name. See the
+          per-strategy field matrix on this object's description.
+      new_value:
+        description: >
+          Replacement value for strategies that substitute (`set_literal_value`,
+          `swap_identifier`, `swap_function_call`, `mutate_fixture`,
+          `mutate_cassette_response`). Type follows the strategy.
+      token:
+        type: string
+        maxLength: 256
+        description: >
+          For `mutate_fixture`, the path/key inside the fixture being mutated.
+          Unused for other strategies.
       action:
         type: string
         maxLength: 256
         description: >
-          For mutate_cassette_response, carries the response field selector:
-          `body`, `status`, or `header.<NAME>`. For other strategies this slot
-          is reserved for future per-strategy use; today it is informational.
-      module: { type: string, maxLength: 256 }
+          For `mutate_cassette_response`, the response field selector: `body`,
+          `status`, or `header.<NAME>`. For other strategies this slot is
+          reserved for future per-strategy use; today it is informational.
+      module:
+        type: string
+        maxLength: 256
+        description: "Required when `strategy: custom`; names the module that implements the mutation."
       branch:
         enum: [failed_approach, working_approach, both]
+        description: "Which branch the mutation applies to (default: working_approach)."
       expected_result:
         enum: [fail, unchanged, pass, inapplicable]
+        description: "Whole-mutation expected outcome. Use this OR `expected_branch_outcome`, not both."
       expected_branch_outcome:
         type: object
         maxProperties: 16
         additionalProperties:
           enum: [fail, unchanged, pass, inapplicable, assertion_does_not_match]
+        description: "Per-branch expected outcome map. Use this OR `expected_result`, not both."
     oneOf:
       - required: [expected_result]
       - required: [expected_branch_outcome]
