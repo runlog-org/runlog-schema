@@ -6,6 +6,8 @@
 **Content:** YAML + JSON Schema (Draft 2020-12)
 **Role:** the contract that pins what entries and session manifests look like. Pinned to a specific version by [`runlog-verifier`](https://github.com/runlog-org/runlog-verifier) and the server.
 
+> **About this project:** Runlog is a hobby side project by [Volker Otto](https://volkerotto.net) — not a commercial product today. A paid model is not ruled out for a later stage. See [About this project](https://runlog.org/#about) for the canonical framing.
+
 Single source of truth for:
 
 - [`entry.schema.yaml`](./entry.schema.yaml) — submission YAML structure, including `cassette` (integration cassette shape) and `verification` blocks as nested `$defs`
