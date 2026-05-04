@@ -623,6 +623,14 @@ $defs:
             - k8s.parse_quantity_to_milli
       cassette:
         $ref: "#/$defs/cassette"
+      runtime:
+        $ref: "#/$defs/runtime"
+        description: >
+          Names the host CLI the verifier drives at unit-tier when
+          `isolation: subprocess`. Same shape as cassette.runtime but
+          scoped to verification (no cassette involved at unit-tier).
+          Required when type:unit + isolation:subprocess; ignored
+          otherwise.
       differential:
         $ref: "#/$defs/differential"
       differential_observations:
@@ -648,6 +656,13 @@ $defs:
       - if: { properties: { type: { const: integration } } }
         then:
           required: [isolation, cassette]
+      - if:
+          properties:
+            type: { const: unit }
+            isolation: { const: subprocess }
+          required: [type, isolation]
+        then:
+          required: [runtime]
 
   # ─── Cassette (§3) ───────────────────────────────────────────────────────
   cassette:
@@ -671,21 +686,7 @@ $defs:
         additionalProperties:
           $ref: "#/$defs/cassette_step"
       runtime:
-        type: object
-        description: >
-          Reexecute-mode runtime declaration. Names the host CLI the verifier
-          drives (sqlite, shell, postgres, redis, git, docker) and an advisory
-          version constraint. v0.1 of the verifier supports `sqlite` and
-          `shell`; other tools surface `runtime_tool_not_yet_implemented`.
-        required: [tool]
-        additionalProperties: false
-        properties:
-          tool:
-            enum: [sqlite, shell, postgres, redis, git, docker]
-          version:
-            type: string
-            maxLength: 256
-            description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
+        $ref: "#/$defs/runtime"
       setup_script:
         type: array
         maxItems: 256
@@ -742,6 +743,26 @@ $defs:
     properties:
       request: { type: string, maxLength: 65536 }
       response: { type: string, maxLength: 65536 }
+
+  # ─── Runtime declaration ────────────────────────────────────────────────
+  # Names the host CLI the verifier drives. Used by:
+  #   - cassette.runtime         — integration-tier reexecute mode
+  #   - verification.runtime     — unit-tier subprocess isolation
+  # Same shape on both sides so a host that supports tool=X at one tier
+  # supports it at the other (driver registry is cross-tier).
+  # v0.1 verifier implements `sqlite` and `shell`; other tools surface
+  # `runtime_unsupported` at run time.
+  runtime:
+    type: object
+    required: [tool]
+    additionalProperties: false
+    properties:
+      tool:
+        enum: [sqlite, shell, postgres, redis, git, docker]
+      version:
+        type: string
+        maxLength: 256
+        description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
 
   # ─── Differential (§4) ───────────────────────────────────────────────────
   # The closed, consumed half of the differential block. Every property
