@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // TestEntrySchemaYAMLNonEmpty guards the //go:embed wiring: an empty
@@ -124,7 +124,11 @@ func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
 				t.Fatalf("get JSON: %v", err)
 			}
 			compiler := jsonschema.NewCompiler()
-			if err := compiler.AddResource(tc.url, strings.NewReader(string(data))); err != nil {
+			doc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(data)))
+			if err != nil {
+				t.Fatalf("UnmarshalJSON: %v", err)
+			}
+			if err := compiler.AddResource(tc.url, doc); err != nil {
 				t.Fatalf("AddResource: %v", err)
 			}
 			if _, err := compiler.Compile(tc.url); err != nil {
