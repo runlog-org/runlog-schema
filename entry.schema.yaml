@@ -292,8 +292,6 @@ $defs:
       - $ref: "#/$defs/fixture_docker_context"
       - $ref: "#/$defs/fixture_http_endpoint"
 
-  # Shared file-tree shape used by directory + docker_context fixtures.
-  # Path-keyed map of file contents (relative paths → file body).
   file_tree:
     type: object
     description: >
@@ -304,6 +302,10 @@ $defs:
 
   fixture_sparse_file:
     type: object
+    description: >
+      Sparse-file fixture. `size` is advisory (capped at 64 GiB to allow
+      large but not exabyte allocations); `content` selects how the
+      verifier fills the holes when reads land on them.
     additionalProperties: false
     required: [kind, size, content]
     properties:
@@ -314,6 +316,10 @@ $defs:
 
   fixture_regular_file:
     type: object
+    description: >
+      Regular-file fixture with inline content and an optional Unix-style
+      mode. The mode pattern is permissive on purpose; the verifier
+      rejects setuid/setgid/sticky bits (>= 04000) at provisioning time.
     additionalProperties: false
     required: [kind, content]
     properties:
@@ -326,6 +332,10 @@ $defs:
 
   fixture_directory:
     type: object
+    description: >
+      Directory fixture — a tree of inline files materialised before the
+      branch runs. `files` uses the shared `file_tree` shape (path-keyed
+      map of relative paths to file bodies).
     additionalProperties: false
     required: [kind, files]
     properties:
