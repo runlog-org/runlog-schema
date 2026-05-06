@@ -100,7 +100,7 @@ var (
 )
 
 // EntrySchemaJSON returns the entry schema normalized to JSON bytes.
-// Useful for jsonschema libraries (e.g. santhosh-tekuri/jsonschema/v5)
+// Useful for jsonschema libraries (e.g. santhosh-tekuri/jsonschema/v6)
 // that compile from JSON rather than YAML. The result is cached after
 // the first successful call; the returned slice is a fresh copy.
 func EntrySchemaJSON() ([]byte, error) {
