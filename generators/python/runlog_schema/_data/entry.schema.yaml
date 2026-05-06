@@ -158,6 +158,9 @@ $defs:
 
   runtime_pin:
     type: object
+    description: >
+      Language or runtime version pin (e.g. `python >=3.10`, `node ^20`).
+      See DECISIONS §6.
     additionalProperties: false
     required: [name, version]
     properties:
@@ -172,6 +175,9 @@ $defs:
 
   package_pin:
     type: object
+    description: >
+      Library/package version pin in the package manager's native syntax
+      (e.g. `^6.5.0`, `~6.5`, `>=7.0,<12.0`). See DECISIONS §5.
     additionalProperties: false
     required: [name, version]
     properties:
@@ -185,6 +191,9 @@ $defs:
 
   external_service_pin:
     type: object
+    description: >
+      Pin against a third-party service (vendor/product, optional API version
+      and endpoint, optional implemented spec).
     additionalProperties: false
     required: [name]
     properties:
@@ -207,6 +216,10 @@ $defs:
 
   build_feature_pin:
     type: object
+    description: >
+      Compile-time or build-time feature flag pin (e.g. `avx2`, `sqlite_fts5`).
+      `pin_strength` controls whether absence at run-verify time fails
+      verification or is merely informational.
     additionalProperties: false
     required: [name, pin_strength]
     properties:
@@ -227,6 +240,9 @@ $defs:
 
   spec_anchor:
     type: object
+    description: >
+      Pin against a written specification (RFC, standard, protocol doc) —
+      name plus optional section/anchor for precise citation.
     additionalProperties: false
     required: [name]
     properties:
@@ -262,6 +278,10 @@ $defs:
 
   # ─── Fixture ─────────────────────────────────────────────────────────────
   fixture:
+    description: >
+      Discriminated union of fixture kinds the verifier provisions before
+      branch execution and tears down after. Discriminator is the literal
+      `kind` field on each arm. See DECISIONS §10.
     oneOf:
       - $ref: "#/$defs/fixture_sparse_file"
       - $ref: "#/$defs/fixture_regular_file"
@@ -276,6 +296,9 @@ $defs:
   # Path-keyed map of file contents (relative paths → file body).
   file_tree:
     type: object
+    description: >
+      Path-keyed map of file contents (relative paths → file body). Shared
+      shape used by `fixture_directory.files` and `fixture_docker_context.files`.
     maxProperties: 1024
     additionalProperties: { type: string, maxLength: 65536 }
 
@@ -403,6 +426,11 @@ $defs:
   # third-party API with no local fixture) where there is nothing to declare.
   context:
     type: object
+    description: >
+      Execution environment an action_step can run inside. `kind` names
+      the connection or runtime category; `database`/`endpoint` typically
+      reference a `$FIXTURE_*` token (see the pairing table above). See
+      DECISIONS §7.
     additionalProperties: false
     required: [kind]
     properties:
@@ -448,6 +476,11 @@ $defs:
   # ─── Branch (failed_approach / working_approach) ─────────────────────────
   branch:
     type: object
+    description: >
+      One arm of the differential pair: a description, an optional setup,
+      an action surface (single fragment, fragment array, or
+      `action_steps_block`), and an assertion. Used by both `failed_approach`
+      and `working_approach` at the top level.
     additionalProperties: false
     required: [description, assertion]
     properties:
@@ -485,14 +518,25 @@ $defs:
   # construction. See DECISIONS §8.
   step_kind_base:
     type: string
+    description: >
+      Step kinds valid in any step surface (`setup` arrays, single-fragment
+      actions, fragment-array actions). See DECISIONS §8.
     enum: [code, shell, sql, dockerfile, data, logic]
 
   step_kind_action:
     type: string
+    description: >
+      Step kinds valid inside an `action_steps_block` — extends `step_kind_base`
+      with `mutation` (state change between adjacent steps) and `wait`
+      (advances the cassette clock). See DECISIONS §8.
     enum: [code, shell, sql, dockerfile, data, logic, mutation, wait]
 
   action_steps_block:
     type: object
+    description: >
+      Multi-step action form — an ordered list of `action_step` items.
+      Required when using `mutation` or `wait` step kinds; for single-step
+      actions a bare step_fragment is the canonical shorthand.
     required: [steps]
     additionalProperties: false
     properties:
@@ -505,6 +549,10 @@ $defs:
 
   action_step:
     type: object
+    description: >
+      One step inside an `action_steps_block`. `id` is the binding target
+      for `assertion.after_step`. `change` is required for `type: mutation`;
+      `duration_seconds` is required for `type: wait`.
     additionalProperties: false
     required: [id, type]
     properties:
@@ -542,6 +590,10 @@ $defs:
   # validated downstream by the verifier's per-type contract layer.
   step_fragment:
     type: object
+    description: >
+      Single-step action shorthand or one item in a fragment-array action.
+      Type-specific fields beyond `type`/`lang`/`body` are validated
+      downstream by the verifier (additionalProperties is open by design).
     required: [type]
     properties:
       type:
@@ -561,6 +613,12 @@ $defs:
   # contract layer (see DECISIONS.md §2).
   assertion:
     type: object
+    description: >
+      Branch outcome predicate. `type` selects a registered assertion kind;
+      `expect` declares whether the branch should succeed or fail under that
+      predicate. Type-specific fields (e.g. `status_pattern`, `exception`,
+      `value_equals`) are validated downstream by the verifier. See
+      DECISIONS §2.
     required: [type, expect]
     properties:
       type:
@@ -599,6 +657,13 @@ $defs:
   # ─── Verification ────────────────────────────────────────────────────────
   verification:
     type: object
+    description: >
+      Verifier configuration. Tier (`assertion_only` / `unit` / `integration`)
+      drives which sibling fields are required: assertion_only needs
+      `primitives_required`; unit needs `isolation`; integration needs
+      `isolation` and `cassette`. The `differential` and `mutations` blocks
+      define the falsifiability surface. See DECISIONS §2 (assertion vocab)
+      and §3 (cassette).
     required: [type, differential, mutations, timeout_seconds]
     additionalProperties: false
     properties:
@@ -693,6 +758,11 @@ $defs:
   # ─── Cassette (§3) ───────────────────────────────────────────────────────
   cassette:
     type: object
+    description: >
+      Recorded interaction artifact for integration-tier verification.
+      `mode: replay` plays a captured request/response transcript; `mode:
+      reexecute` re-runs the named host CLI in a sandbox built from
+      `setup_script` + `runtime`. See DECISIONS §3.
     required: [mode, artifact, captures, strips, replay_targets]
     additionalProperties: false
     properties:
@@ -764,6 +834,10 @@ $defs:
 
   cassette_step:
     type: object
+    description: >
+      Named request/response pair inside `cassette.steps`. Step names are
+      referenced from `differential.{failed,working}_approach_replay_sequence`
+      to pin a specific replay frame.
     additionalProperties: false
     required: [request, response]
     properties:
@@ -780,6 +854,11 @@ $defs:
   # `runtime_unsupported` at run time.
   runtime:
     type: object
+    description: >
+      Names the host CLI the verifier drives — used by `cassette.runtime`
+      (integration-tier reexecute) and `verification.runtime` (unit-tier
+      subprocess isolation). Same shape on both sides; the driver registry
+      is cross-tier.
     required: [tool]
     additionalProperties: false
     properties:
@@ -807,6 +886,10 @@ $defs:
   # `differential_observations` block; see below.
   differential:
     type: object
+    description: >
+      Closed bag of verifier-consumed differential keys (inputs, must-raise /
+      must-return outcomes, replay-sequence pins). Free-form descriptive keys
+      go in the sibling `differential_observations`. See DECISIONS §4.
     additionalProperties: false
     maxProperties: 64
     properties:
@@ -858,6 +941,11 @@ $defs:
   # move it across in the same release.
   differential_observations:
     type: object
+    description: >
+      Open bag for descriptive differential keys that document the test in
+      human terms but are not consumed by the verifier or server. Sibling to
+      `differential`. New descriptive keys are accepted without schema
+      changes by design.
     additionalProperties: true
     maxProperties: 64
 
