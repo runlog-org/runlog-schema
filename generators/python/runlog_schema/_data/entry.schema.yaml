@@ -43,6 +43,11 @@ properties:
   version_constraints:
     type: object
     additionalProperties: false
+    description: >
+      Version pins that bound the claim. At least one of `runtime`, `packages`,
+      `external_services`, or `spec` must be present so an entry is not
+      version-floating. See DECISIONS §6 (version pinning) and §9 (asymmetric
+      applicability via `claim_scope`).
     properties:
       runtime:
         $ref: "#/$defs/runtime_pin"
@@ -87,6 +92,10 @@ properties:
   literals:
     type: object
     maxProperties: 256
+    description: >
+      Categorized constants referenced by `$LITERAL_*` tokens elsewhere in the
+      entry. Submission rule §4 enforces that every `$LITERAL_*` referenced in
+      branches is declared here. See DECISIONS §1.
     patternProperties:
       "^\\$LITERAL_[A-Z0-9_]+$":
         type: object
@@ -106,6 +115,10 @@ properties:
   fixtures:
     type: object
     maxProperties: 256
+    description: >
+      Named test fixtures referenced by `$FIXTURE_*` tokens in branches and
+      contexts. Submission rule §5 enforces that every `$FIXTURE_*` referenced
+      is declared here. See DECISIONS §10.
     patternProperties:
       "^\\$FIXTURE_[A-Z0-9_]+$":
         $ref: "#/$defs/fixture"
@@ -122,12 +135,22 @@ properties:
   # ─── Branches ───────────────────────────────────────────────────────────
   failed_approach:
     $ref: "#/$defs/branch"
+    description: >
+      The branch that fails — what the developer tried first that did not work.
+      Paired with `working_approach` to form the differential test. See `$defs/branch`.
   working_approach:
     $ref: "#/$defs/branch"
+    description: >
+      The branch that works — the resolution the developer arrived at. Paired with
+      `failed_approach` to form the differential test. See `$defs/branch`.
 
   # ─── Verification ───────────────────────────────────────────────────────
   verification:
     $ref: "#/$defs/verification"
+    description: >
+      Verifier configuration: tier (`assertion_only` / `unit` / `integration`),
+      isolation, mutations, timeout, and the optional cassette and runtime
+      declarations. See `$defs/verification`.
 
 
 # ─── Shared definitions ────────────────────────────────────────────────────
@@ -432,6 +455,9 @@ $defs:
         type: string
         minLength: 30
         maxLength: 4096
+        description: >
+          Human-readable summary of what this branch represents — why it
+          fails (for `failed_approach`) or why it works (for `working_approach`).
       setup:
         type: array
         maxItems: 64
