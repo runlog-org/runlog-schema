@@ -249,6 +249,87 @@ func TestBranchActionOneOfDisambiguation(t *testing.T) {
 	}
 }
 
+// TestMutationCassetteResponseFieldOrAction pins the F76 split:
+// `mutate_cassette_response` accepts the response-field selector under
+// either `field` (preferred, schema 0.4.1+) or `action` (legacy,
+// pre-0.4.1). Both must validate so in-flight seeds keep working while
+// new seeds migrate to `field`. A future major bump may retire `action`
+// for this strategy; until then both shapes round-trip.
+func TestMutationCassetteResponseFieldOrAction(t *testing.T) {
+	data, err := EntrySchemaJSON()
+	if err != nil {
+		t.Fatalf("EntrySchemaJSON: %v", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	url := "https://runlog.org/schemas/entry/v1.json"
+	if err := compiler.AddResource(url, doc); err != nil {
+		t.Fatalf("AddResource: %v", err)
+	}
+	mutSchema, err := compiler.Compile(url + "#/$defs/mutation")
+	if err != nil {
+		t.Fatalf("Compile mutation: %v", err)
+	}
+
+	mk := func(extra map[string]any) map[string]any {
+		m := map[string]any{
+			"strategy":        "mutate_cassette_response",
+			"target":          "step-1",
+			"new_value":       "200",
+			"expected_result": "fail",
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return m
+	}
+
+	cases := []struct {
+		name     string
+		extra    map[string]any
+		validate bool
+	}{
+		{
+			name:     "field selector (new shape, schema 0.4.1+)",
+			extra:    map[string]any{"field": "body"},
+			validate: true,
+		},
+		{
+			name:     "action selector (legacy back-compat)",
+			extra:    map[string]any{"action": "body"},
+			validate: true,
+		},
+		{
+			name:     "header.<NAME> via field",
+			extra:    map[string]any{"field": "header.X-RateLimit-Remaining"},
+			validate: true,
+		},
+		{
+			name:     "header.<NAME> via legacy action",
+			extra:    map[string]any{"action": "header.X-RateLimit-Remaining"},
+			validate: true,
+		},
+		{
+			name:     "both field and action set (no validation conflict — consumer prefers field)",
+			extra:    map[string]any{"field": "body", "action": "status"},
+			validate: true,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := mutSchema.Validate(mk(tc.extra))
+			gotValid := err == nil
+			if gotValid != tc.validate {
+				t.Errorf("validate=%v want=%v err=%v", gotValid, tc.validate, err)
+			}
+		})
+	}
+}
+
 // TestSchemaVersionMatchesConstant pins the accessor to the constant,
 // which itself sources from the embedded VERSION file. Mirrors
 // test_schema_version_matches_constant on the Python side.
