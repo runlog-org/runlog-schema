@@ -992,9 +992,11 @@ $defs:
                                           `token` (path inside the fixture), and
                                           `new_value`.
         strategy: mutate_cassette_response — uses `target` (the cassette step
-                                          name), `action` (response selector:
-                                          `body`, `status`, or `header.<NAME>`),
-                                          and `new_value`.
+                                          name), `field` (response selector:
+                                          `body`, `status`, or `header.<NAME>`;
+                                          legacy seeds may still carry the
+                                          selector under `action` and remain
+                                          valid), and `new_value`.
         strategy: custom                — requires `module`; the named module
                                           implements the mutation.
     required: [strategy, target]
@@ -1028,13 +1030,28 @@ $defs:
         description: >
           For `mutate_fixture`, the path/key inside the fixture being mutated.
           Unused for other strategies.
-      action:
+      field:
         type: string
         maxLength: 256
         description: >
           For `mutate_cassette_response`, the response field selector: `body`,
-          `status`, or `header.<NAME>`. For other strategies this slot is
-          reserved for future per-strategy use; today it is informational.
+          `status`, or `header.<NAME>`. Replaces `action` for this strategy
+          (which dual-purposed as a `custom`-strategy hook AND a
+          cassette-response selector — F22 soft TODO closed by F76 in
+          schema 0.4.1). New seeds SHOULD use `field`; consumers MUST
+          accept either `field` (preferred) or `action` (legacy) and treat
+          them as equivalent until a future major bump retires `action`
+          for cassette-response.
+      action:
+        type: string
+        maxLength: 256
+        description: >
+          Legacy slot — for `mutate_cassette_response` this was the response
+          field selector before F76 split it into a dedicated `field` key
+          (schema 0.4.1). Consumers MUST still accept `action` here for
+          back-compat with in-flight seeds; new seeds SHOULD use `field`.
+          For other strategies this slot is reserved for future per-strategy
+          use; today it is informational.
       module:
         type: string
         maxLength: 256
