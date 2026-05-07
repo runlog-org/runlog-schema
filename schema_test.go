@@ -138,6 +138,117 @@ func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
 	}
 }
 
+// TestBranchActionOneOfDisambiguation pins the structural disambiguation
+// of `branch.action`'s 3-way oneOf. Arm 1 (single step_fragment) inherits
+// `additionalProperties: true`, so without the `not: {required: [steps]}`
+// guard a document carrying both a `type` and a `steps` array would
+// silently pass arm 1 by treating `steps` as an unrecognized extra.
+// The schema enforces that arm 1 cannot claim a document that has
+// `steps`; arm 3's `additionalProperties: false` already forbids `type`
+// on its side. This test fails loudly if a future refactor drops the
+// guard, restoring the silent-failure path.
+func TestBranchActionOneOfDisambiguation(t *testing.T) {
+	data, err := EntrySchemaJSON()
+	if err != nil {
+		t.Fatalf("EntrySchemaJSON: %v", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	url := "https://runlog.org/schemas/entry/v1.json"
+	if err := compiler.AddResource(url, doc); err != nil {
+		t.Fatalf("AddResource: %v", err)
+	}
+	root, err := compiler.Compile(url)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	branch := root.DynamicRef
+	_ = branch // appease unused-var if dynamic-ref path differs
+	// Compile the branch sub-schema directly via $ref.
+	branchURL := url + "#/$defs/branch"
+	branchSchema, err := compiler.Compile(branchURL)
+	if err != nil {
+		t.Fatalf("Compile branch: %v", err)
+	}
+
+	mkBranch := func(action any) map[string]any {
+		return map[string]any{
+			"description": strings.Repeat("x", 40),
+			"action":      action,
+			"assertion": map[string]any{
+				"type":   "status",
+				"expect": "success",
+			},
+		}
+	}
+
+	cases := []struct {
+		name     string
+		action   any
+		validate bool
+	}{
+		{
+			name:     "arm1 single step_fragment",
+			action:   map[string]any{"type": "code", "body": "print('x')"},
+			validate: true,
+		},
+		{
+			name: "arm2 array of step_fragments",
+			action: []any{
+				map[string]any{"type": "code", "body": "print('x')"},
+				map[string]any{"type": "shell", "body": "ls"},
+			},
+			validate: true,
+		},
+		{
+			name: "arm3 action_steps_block",
+			action: map[string]any{
+				"steps": []any{
+					map[string]any{"id": "main", "type": "code", "body": "print('x')"},
+				},
+			},
+			validate: true,
+		},
+		{
+			name: "ambiguous shape (type + steps) rejected",
+			action: map[string]any{
+				"type": "code",
+				"body": "print('x')",
+				"steps": []any{
+					map[string]any{"id": "main", "type": "code"},
+				},
+			},
+			validate: false,
+		},
+		{
+			name: "ambiguous shape inside arm2 array rejected",
+			action: []any{
+				map[string]any{
+					"type": "code",
+					"body": "print('x')",
+					"steps": []any{
+						map[string]any{"id": "main", "type": "code"},
+					},
+				},
+			},
+			validate: false,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := branchSchema.Validate(mkBranch(tc.action))
+			gotValid := err == nil
+			if gotValid != tc.validate {
+				t.Errorf("validate=%v want=%v err=%v", gotValid, tc.validate, err)
+			}
+		})
+	}
+}
+
 // TestSchemaVersionMatchesConstant pins the accessor to the constant,
 // which itself sources from the embedded VERSION file. Mirrors
 // test_schema_version_matches_constant on the Python side.
