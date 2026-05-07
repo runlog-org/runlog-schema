@@ -105,9 +105,11 @@ def test_schema_version_matches_constant() -> None:
 
 
 def test_schema_version_shape() -> None:
-    """Mirrors Go's TestSchemaVersionShape: accept bare semver and
-    tag-prefixed forms so a future move to a VERSION file doesn't have
-    to fight this test."""
+    """Mirrors Go's TestSchemaVersionShape. The current source is the
+    bundled VERSION file (bare semver, e.g. ``"0.4.1"``); the regex
+    also accepts the tag-prefixed form (``"v0.4.1"``) so the test
+    survives any future change to source from `git describe` instead.
+    """
     v = schema_version()
     assert v, "schema_version returned empty string"
     assert re.match(r"^v?\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$", v), (

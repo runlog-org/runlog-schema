@@ -340,9 +340,10 @@ func TestSchemaVersionMatchesConstant(t *testing.T) {
 }
 
 // TestSchemaVersionShape sanity-checks that SchemaVersion returns
-// something that looks like a version string. We deliberately accept
-// both bare semver ("1.2.3") and tag-prefixed ("v1.2.3") forms so a
-// future move to a VERSION file doesn't have to fight this test.
+// something that looks like a version string. The current source is
+// the embedded VERSION file (bare semver, e.g. "0.4.1"); the regex
+// also accepts the tag-prefixed form ("v0.4.1") so the test survives
+// any future change to embed `git describe` output instead.
 func TestSchemaVersionShape(t *testing.T) {
 	v := SchemaVersion()
 	if v == "" {
