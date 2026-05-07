@@ -507,12 +507,26 @@ $defs:
         items:
           $ref: "#/$defs/step_fragment"
       action:
+        # Three-way oneOf with structural discriminators — the arms are
+        # disambiguated by required-property shape, not the validator's
+        # tie-breaking. Arm 1 (single fragment) carries
+        # `additionalProperties: true` from `step_fragment`, so without
+        # the `not` guard a document like `{type: code, steps: [...]}`
+        # would pass arm 1 (steps treated as an "extra" field) AND
+        # could plausibly read as arm 3. The `not: {required: [steps]}`
+        # forbids arm 1 from claiming a document that has a `steps`
+        # field. Arm 3's `additionalProperties: false` already forbids
+        # `type` on its side, so the discrimination is symmetric.
         oneOf:
-          - $ref: "#/$defs/step_fragment"
+          - allOf:
+              - $ref: "#/$defs/step_fragment"
+              - not: { required: [steps] }
           - type: array
             maxItems: 64
             items:
-              $ref: "#/$defs/step_fragment"
+              allOf:
+                - $ref: "#/$defs/step_fragment"
+                - not: { required: [steps] }
           - $ref: "#/$defs/action_steps_block"
       assertion:
         $ref: "#/$defs/assertion"
