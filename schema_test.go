@@ -9,98 +9,114 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// TestEntrySchemaYAMLNonEmpty guards the //go:embed wiring: an empty
-// slice means the file got renamed without updating the embed
-// directive, or the build was run from a directory where the file is
-// invisible.
-func TestEntrySchemaYAMLNonEmpty(t *testing.T) {
-	got := EntrySchemaYAML()
-	if len(got) == 0 {
-		t.Fatal("EntrySchemaYAML returned empty bytes; //go:embed not wired up?")
-	}
-	if !strings.HasPrefix(string(got), "$schema:") {
-		t.Errorf("entry schema YAML doesn't start with $schema: declaration; got %q...", firstLine(got))
+// schemaAccessor names one of the two embedded schemas plus its YAML/JSON
+// accessor pair. Used to table-drive the parallel YAML-/JSON-side guards
+// below so a refactor that adds a third schema file (or drops one of the
+// existing accessors) can't accidentally leave half the invariants
+// unchecked.
+type schemaAccessor struct {
+	name         string // "entry" / "manifest" — the test subtest label
+	yamlFn       func() []byte
+	jsonFn       func() ([]byte, error)
+	requireID    bool   // both schemas declare $id today; the flag stays so a future schema without one can opt out
+	yamlAccessor string // "EntrySchemaYAML" — used in error messages so failures point at the right symbol
+	jsonAccessor string // "EntrySchemaJSON" — same
+}
+
+var schemaAccessors = []schemaAccessor{
+	{
+		name:         "entry",
+		yamlFn:       EntrySchemaYAML,
+		jsonFn:       EntrySchemaJSON,
+		requireID:    true,
+		yamlAccessor: "EntrySchemaYAML",
+		jsonAccessor: "EntrySchemaJSON",
+	},
+	{
+		name:         "manifest",
+		yamlFn:       ManifestSchemaYAML,
+		jsonFn:       ManifestSchemaJSON,
+		requireID:    true,
+		yamlAccessor: "ManifestSchemaYAML",
+		jsonAccessor: "ManifestSchemaJSON",
+	},
+}
+
+// TestSchemaYAMLNonEmpty guards the //go:embed wiring: an empty slice
+// means the file got renamed without updating the embed directive, or
+// the build was run from a directory where the file is invisible.
+func TestSchemaYAMLNonEmpty(t *testing.T) {
+	for _, sa := range schemaAccessors {
+		sa := sa
+		t.Run(sa.name, func(t *testing.T) {
+			got := sa.yamlFn()
+			if len(got) == 0 {
+				t.Fatalf("%s returned empty bytes; //go:embed not wired up?", sa.yamlAccessor)
+			}
+			if !strings.HasPrefix(string(got), "$schema:") {
+				t.Errorf("%s schema YAML doesn't start with $schema: declaration; got %q...", sa.name, firstLine(got))
+			}
+		})
 	}
 }
 
-func TestManifestSchemaYAMLNonEmpty(t *testing.T) {
-	got := ManifestSchemaYAML()
-	if len(got) == 0 {
-		t.Fatal("ManifestSchemaYAML returned empty bytes; //go:embed not wired up?")
-	}
-	if !strings.HasPrefix(string(got), "$schema:") {
-		t.Errorf("manifest schema YAML doesn't start with $schema: declaration; got %q...", firstLine(got))
-	}
-}
-
-// TestEntrySchemaYAMLReturnsCopy verifies the documented mutation
-// safety: callers can mutate the returned slice without corrupting the
-// embedded data for subsequent calls.
-func TestEntrySchemaYAMLReturnsCopy(t *testing.T) {
-	a := EntrySchemaYAML()
-	if len(a) == 0 {
-		t.Fatal("empty result")
-	}
-	a[0] = 0
-	b := EntrySchemaYAML()
-	if b[0] == 0 {
-		t.Fatal("EntrySchemaYAML returned a shared slice; mutation leaked into embedded data")
+// TestSchemaYAMLReturnsCopy verifies the documented mutation safety:
+// callers can mutate the returned slice without corrupting the embedded
+// data for subsequent calls. Run for every accessor so a future refactor
+// that drops cloneBytes from one of them can't silently regress mutation
+// safety on just that one.
+func TestSchemaYAMLReturnsCopy(t *testing.T) {
+	for _, sa := range schemaAccessors {
+		sa := sa
+		t.Run(sa.name, func(t *testing.T) {
+			a := sa.yamlFn()
+			if len(a) == 0 {
+				t.Fatal("empty result")
+			}
+			a[0] = 0
+			b := sa.yamlFn()
+			if b[0] == 0 {
+				t.Fatalf("%s returned a shared slice; mutation leaked into embedded data", sa.yamlAccessor)
+			}
+		})
 	}
 }
 
-// TestManifestSchemaYAMLReturnsCopy mirrors the entry-side guard so a
-// future refactor that drops cloneBytes from ManifestSchemaYAML can't
-// silently regress mutation safety on just one of the two accessors.
-func TestManifestSchemaYAMLReturnsCopy(t *testing.T) {
-	a := ManifestSchemaYAML()
-	if len(a) == 0 {
-		t.Fatal("empty result")
-	}
-	a[0] = 0
-	b := ManifestSchemaYAML()
-	if b[0] == 0 {
-		t.Fatal("ManifestSchemaYAML returned a shared slice; mutation leaked into embedded data")
-	}
-}
-
-// TestEntrySchemaJSONIsValidJSON checks that the JSON form parses
-// cleanly with encoding/json — the basic invariant any downstream
-// jsonschema library will assume.
-func TestEntrySchemaJSONIsValidJSON(t *testing.T) {
-	data, err := EntrySchemaJSON()
-	if err != nil {
-		t.Fatalf("EntrySchemaJSON: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("EntrySchemaJSON returned empty bytes")
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("EntrySchemaJSON: not valid JSON: %v", err)
-	}
-	if doc["$schema"] == nil {
-		t.Error("entry schema JSON missing $schema key")
-	}
-	if doc["$id"] == nil {
-		t.Error("entry schema JSON missing $id key")
+// TestSchemaJSONIsValidJSON checks that the JSON form parses cleanly
+// with encoding/json — the basic invariant any downstream jsonschema
+// library will assume.
+func TestSchemaJSONIsValidJSON(t *testing.T) {
+	for _, sa := range schemaAccessors {
+		sa := sa
+		t.Run(sa.name, func(t *testing.T) {
+			data, err := sa.jsonFn()
+			if err != nil {
+				t.Fatalf("%s: %v", sa.jsonAccessor, err)
+			}
+			if len(data) == 0 {
+				t.Fatalf("%s returned empty bytes", sa.jsonAccessor)
+			}
+			var doc map[string]any
+			if err := json.Unmarshal(data, &doc); err != nil {
+				t.Fatalf("%s: not valid JSON: %v", sa.jsonAccessor, err)
+			}
+			if doc["$schema"] == nil {
+				t.Errorf("%s schema JSON missing $schema key", sa.name)
+			}
+			if sa.requireID && doc["$id"] == nil {
+				t.Errorf("%s schema JSON missing $id key", sa.name)
+			}
+		})
 	}
 }
 
-func TestManifestSchemaJSONIsValidJSON(t *testing.T) {
-	data, err := ManifestSchemaJSON()
-	if err != nil {
-		t.Fatalf("ManifestSchemaJSON: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("ManifestSchemaJSON returned empty bytes")
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("ManifestSchemaJSON: not valid JSON: %v", err)
-	}
-	if doc["$schema"] == nil {
-		t.Error("manifest schema JSON missing $schema key")
-	}
+// schemaURL maps a schema accessor name to its canonical $id URL. Kept
+// as a separate table from schemaAccessors because it's only used by the
+// jsonschema-compiler tests below; folding it into the accessor struct
+// would couple every accessor row to a URL even where it isn't relevant.
+var schemaURL = map[string]string{
+	"entry":    "https://runlog.org/schemas/entry/v1.json",
+	"manifest": "https://runlog.org/schemas/manifest/v1.json",
 }
 
 // TestSchemasAreValidDraft2020Schemas pulls in the same compiler the
@@ -108,18 +124,10 @@ func TestManifestSchemaJSONIsValidJSON(t *testing.T) {
 // Draft 2020-12. Mirrors the Python `Draft202012Validator.check_schema`
 // gate that runs in CI on every PR.
 func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
-	cases := []struct {
-		name string
-		url  string
-		fn   func() ([]byte, error)
-	}{
-		{"entry", "https://runlog.org/schemas/entry/v1.json", EntrySchemaJSON},
-		{"manifest", "https://runlog.org/schemas/manifest/v1.json", ManifestSchemaJSON},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			data, err := tc.fn()
+	for _, sa := range schemaAccessors {
+		sa := sa
+		t.Run(sa.name, func(t *testing.T) {
+			data, err := sa.jsonFn()
 			if err != nil {
 				t.Fatalf("get JSON: %v", err)
 			}
@@ -128,10 +136,11 @@ func TestSchemasAreValidDraft2020Schemas(t *testing.T) {
 			if err != nil {
 				t.Fatalf("UnmarshalJSON: %v", err)
 			}
-			if err := compiler.AddResource(tc.url, doc); err != nil {
+			url := schemaURL[sa.name]
+			if err := compiler.AddResource(url, doc); err != nil {
 				t.Fatalf("AddResource: %v", err)
 			}
-			if _, err := compiler.Compile(tc.url); err != nil {
+			if _, err := compiler.Compile(url); err != nil {
 				t.Fatalf("Compile: %v", err)
 			}
 		})
@@ -161,12 +170,9 @@ func TestBranchActionOneOfDisambiguation(t *testing.T) {
 	if err := compiler.AddResource(url, doc); err != nil {
 		t.Fatalf("AddResource: %v", err)
 	}
-	root, err := compiler.Compile(url)
-	if err != nil {
+	if _, err := compiler.Compile(url); err != nil {
 		t.Fatalf("Compile: %v", err)
 	}
-	branch := root.DynamicRef
-	_ = branch // appease unused-var if dynamic-ref path differs
 	// Compile the branch sub-schema directly via $ref.
 	branchURL := url + "#/$defs/branch"
 	branchSchema, err := compiler.Compile(branchURL)

@@ -73,20 +73,23 @@ func SchemaVersion() string {
 // jsonCache lazily holds the JSON-normalized form of one embedded
 // schema. The conversion is deterministic, so the cached value is
 // stable for the lifetime of the process; we pay the YAML→JSON
-// round-trip once per schema.
+// round-trip once per schema. `src` is the embedded YAML source bound
+// at package-init time so the call site doesn't have to re-route the
+// reference on every read.
 type jsonCache struct {
+	src  []byte
 	once sync.Once
 	data []byte
 	err  error
 }
 
 // get returns a fresh copy of the cached JSON bytes, computing them on
-// first call from the supplied YAML source. The returned slice is a
-// fresh copy on every successful call so callers can mutate it without
+// first call from the bound YAML source. The returned slice is a fresh
+// copy on every successful call so callers can mutate it without
 // poisoning the cache.
-func (c *jsonCache) get(src []byte) ([]byte, error) {
+func (c *jsonCache) get() ([]byte, error) {
 	c.once.Do(func() {
-		c.data, c.err = yamlBytesToJSON(src)
+		c.data, c.err = yamlBytesToJSON(c.src)
 	})
 	if c.err != nil {
 		return nil, c.err
@@ -95,8 +98,8 @@ func (c *jsonCache) get(src []byte) ([]byte, error) {
 }
 
 var (
-	entryJSONCache    jsonCache
-	manifestJSONCache jsonCache
+	entryJSONCache    = jsonCache{src: entrySchemaYAML}
+	manifestJSONCache = jsonCache{src: manifestSchemaYAML}
 )
 
 // EntrySchemaJSON returns the entry schema normalized to JSON bytes.
@@ -104,13 +107,13 @@ var (
 // that compile from JSON rather than YAML. The result is cached after
 // the first successful call; the returned slice is a fresh copy.
 func EntrySchemaJSON() ([]byte, error) {
-	return entryJSONCache.get(entrySchemaYAML)
+	return entryJSONCache.get()
 }
 
 // ManifestSchemaJSON returns the manifest schema normalized to JSON
 // bytes. See EntrySchemaJSON for caching and copy semantics.
 func ManifestSchemaJSON() ([]byte, error) {
-	return manifestJSONCache.get(manifestSchemaYAML)
+	return manifestJSONCache.get()
 }
 
 // yamlBytesToJSON parses YAML and re-encodes as canonical JSON. The
