@@ -671,6 +671,28 @@ $defs:
         type: string
         maxLength: 256
         description: "Binds assertion to a specific action-step id."
+      planning_time_seconds_gt:
+        type: number
+        minimum: 0
+        description: >
+          Per-branch action-level planning-time lower bound. When the
+          assertion's `type: plan_node`, parses the captured stdout as
+          `EXPLAIN (FORMAT JSON)` and asserts the `Planning Time` field
+          (milliseconds, converted to seconds) is strictly greater than this
+          value. Action-level analogue of
+          `differential.{failed,working}_branch_planning_time_seconds_gt`. See
+          runlog-verifier/internal/verify/spec.go::matchActionPlanNodeTiming.
+      planning_time_seconds_lt:
+        type: number
+        minimum: 0
+        description: >
+          Per-branch action-level planning-time upper bound. When the
+          assertion's `type: plan_node`, parses the captured stdout as
+          `EXPLAIN (FORMAT JSON)` and asserts the `Planning Time` field
+          (milliseconds, converted to seconds) is strictly less than this
+          value. Action-level analogue of
+          `differential.{failed,working}_branch_planning_time_seconds_lt`. See
+          runlog-verifier/internal/verify/spec.go::matchActionPlanNodeTiming.
       # Type-specific fields (loose — individual types validate internals via
       # additional allOf branches at the platform level).
     additionalProperties: true
@@ -905,15 +927,16 @@ $defs:
   # silently"), bypassing the negative-falsifiability check.
   #
   # Free-form descriptive keys (failed_approach_assertion,
-  # working_approach_observation, setup_sequence,
-  # working_branch_must_contain_plan_node, …) belong in the sibling
+  # working_approach_observation, setup_sequence, …) belong in the sibling
   # `differential_observations` block; see below.
   differential:
     type: object
     description: >
       Closed bag of verifier-consumed differential keys (inputs, must-raise /
-      must-return outcomes, replay-sequence pins). Free-form descriptive keys
-      go in the sibling `differential_observations`. See DECISIONS §4.
+      must-return outcomes, replay-sequence pins, plan-node containment,
+      planning-time thresholds, collection-property duplicates). Free-form
+      descriptive keys go in the sibling `differential_observations`. See
+      DECISIONS §4.
     additionalProperties: false
     maxProperties: 64
     properties:
@@ -951,6 +974,98 @@ $defs:
         type: array
         maxItems: 256
         items: { type: string, maxLength: 256 }
+      failed_branch_must_contain_plan_node:
+        type: string
+        maxLength: 4096
+        description: >
+          Substring containment match against the failed branch's captured
+          stdout (typically `EXPLAIN (FORMAT TEXT)` plan output). Passes when
+          the string is found anywhere in the captured output. Pairs with
+          `working_branch_must_contain_plan_node` to express a differential
+          plan-shape assertion. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeContains.
+      failed_branch_must_contain_plan_node_any:
+        type: array
+        maxItems: 64
+        items: { type: string, maxLength: 4096 }
+        description: >
+          Any-of variant of `failed_branch_must_contain_plan_node`. Passes
+          when at least one of the listed strings is found in the failed
+          branch's captured stdout. Independent of the scalar sibling — both
+          may be present (additive semantics).
+      working_branch_must_contain_plan_node:
+        type: string
+        maxLength: 4096
+        description: >
+          Substring containment match against the working branch's captured
+          stdout (typically `EXPLAIN (FORMAT TEXT)` plan output). Pairs with
+          `failed_branch_must_contain_plan_node` for the differential. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeContains.
+      working_branch_must_contain_plan_node_any:
+        type: array
+        maxItems: 64
+        items: { type: string, maxLength: 4096 }
+        description: >
+          Any-of variant of `working_branch_must_contain_plan_node`. Passes
+          when at least one of the listed strings is found in the working
+          branch's captured stdout. Independent of the scalar sibling — both
+          may be present (additive semantics).
+      failed_branch_planning_time_seconds_gt:
+        type: number
+        minimum: 0
+        description: >
+          Minimum planning-time threshold for the failed branch. Parses the
+          failed branch's `EXPLAIN (FORMAT JSON)` captured stdout and reads the
+          `Planning Time` field (milliseconds, converted to seconds); asserts
+          the value is strictly greater than this threshold. Independent of the
+          `_lt` sibling — both may apply additively. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeTiming.
+      failed_branch_planning_time_seconds_lt:
+        type: number
+        minimum: 0
+        description: >
+          Maximum planning-time threshold for the failed branch. Parses the
+          failed branch's `EXPLAIN (FORMAT JSON)` captured stdout and reads the
+          `Planning Time` field (milliseconds, converted to seconds); asserts
+          the value is strictly less than this threshold. Independent of the
+          `_gt` sibling — both may apply additively. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeTiming.
+      working_branch_planning_time_seconds_gt:
+        type: number
+        minimum: 0
+        description: >
+          Minimum planning-time threshold for the working branch. Parses the
+          working branch's `EXPLAIN (FORMAT JSON)` captured stdout and reads
+          the `Planning Time` field (milliseconds, converted to seconds);
+          asserts the value is strictly greater than this threshold. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeTiming.
+      working_branch_planning_time_seconds_lt:
+        type: number
+        minimum: 0
+        description: >
+          Maximum planning-time threshold for the working branch. Parses the
+          working branch's `EXPLAIN (FORMAT JSON)` captured stdout and reads
+          the `Planning Time` field (milliseconds, converted to seconds);
+          asserts the value is strictly less than this threshold. See
+          runlog-verifier/internal/verify/spec.go::matchPlanNodeTiming.
+      failed_branch_collection_has_duplicates:
+        type: boolean
+        description: >
+          Parses the failed branch's captured stdout as a newline-separated
+          collection (each line trimmed, empty lines dropped) and asserts
+          whether it contains duplicates. `true` requires duplicates present;
+          `false` requires all lines be unique. See
+          runlog-verifier/internal/verify/spec.go::matchCollectionProperty and
+          parseCollectionLines.
+      working_branch_collection_has_duplicates:
+        type: boolean
+        description: >
+          Parses the working branch's captured stdout as a newline-separated
+          collection (each line trimmed, empty lines dropped) and asserts
+          whether it contains duplicates. `true` requires duplicates present;
+          `false` requires all lines be unique. See
+          runlog-verifier/internal/verify/spec.go::matchCollectionProperty and
+          parseCollectionLines.
 
   # ─── Differential observations (§4) ──────────────────────────────────────
   # Open bag for descriptive keys that document the differential test in
