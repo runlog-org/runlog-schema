@@ -14,7 +14,12 @@ properties:
 
   version:
     const: "1"
-    description: "Manifest schema version; pinned to '1' for v1."
+    description: >
+      Manifest format version — pinned to "1" for the v1 generation of
+      the format. Distinct from the runlog-schema package version (see
+      VERSION at repo root): the format version only bumps on
+      breaking changes to this manifest's shape, while the package
+      version tracks any release of the schemas.
 
   retrieved_at:
     type: string
@@ -85,8 +90,17 @@ properties:
       properties:
         kb_id:
           type: string
+          # Pattern MUST stay byte-identical with
+          # entry.schema.yaml#/properties/unit_id/pattern — kb_id is the
+          # manifest's reference to a Runlog entry's unit_id, so a
+          # divergence here would let the manifest accept identifiers the
+          # entry schema rejects (or vice versa). Cross-file $ref isn't
+          # used because each schema is published as an independent
+          # artifact under its own $id.
           pattern: "^[a-z0-9][a-z0-9-]{3,127}$"
-          description: "The unit_id of a Runlog entry."
+          description: >
+            The unit_id of a Runlog entry. Pattern is held byte-identical
+            with `entry.schema.yaml#/properties/unit_id/pattern`.
         retrieved:
           type: string
           format: date-time

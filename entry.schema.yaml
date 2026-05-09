@@ -279,9 +279,10 @@ $defs:
   # ─── Fixture ─────────────────────────────────────────────────────────────
   fixture:
     description: >
-      Discriminated union of fixture kinds the verifier provisions before
-      branch execution and tears down after. Discriminator is the literal
-      `kind` field on each arm. See DECISIONS §10.
+      Tagged union of fixture kinds the verifier provisions before branch
+      execution and tears down after. Each arm pins `kind` to a literal
+      const, so JSON Schema's `oneOf` resolves unambiguously without
+      needing the OAS `discriminator` keyword. See DECISIONS §10.
     oneOf:
       - $ref: "#/$defs/fixture_sparse_file"
       - $ref: "#/$defs/fixture_regular_file"
@@ -766,8 +767,10 @@ $defs:
           Names the host CLI the verifier drives at unit-tier when
           `isolation: subprocess`. Same shape as cassette.runtime but
           scoped to verification (no cassette involved at unit-tier).
-          Required when type:unit + isolation:subprocess; ignored
-          otherwise.
+          Required when type:unit + isolation:subprocess (enforced by
+          the conditional `allOf` below); accepted but ignored on other
+          tier/isolation combinations so seeds can carry it ahead of a
+          tier change without rewriting.
       differential:
         $ref: "#/$defs/differential"
       differential_observations:
@@ -954,6 +957,15 @@ $defs:
             maxProperties: 256
             not:
               required: [failed_approach, working_approach]
+      # The four `must_raise` / `must_return` keys are intentionally
+      # typed as `{}` (any value): each one's accepted shape is a small
+      # string-or-object DSL the verifier parses (see
+      # runlog-verifier/internal/verify/spec.go::matchOutcome). Constraining
+      # them at the schema level would force every shape variant into the
+      # YAML, when the verifier is the canonical contract for what's
+      # accepted. The closure of `differential` itself (above) is what
+      # protects against typos in the *key name*; key-internal validation
+      # lives downstream.
       failed_branch_must_raise: {}
       failed_branch_must_return: {}
       working_branch_must_raise: {}
@@ -1176,13 +1188,24 @@ $defs:
         description: "Which branch the mutation applies to (default: working_approach)."
       expected_result:
         enum: [fail, unchanged, pass, inapplicable]
-        description: "Whole-mutation expected outcome. Use this OR `expected_branch_outcome`, not both."
+        description: >
+          Whole-mutation expected outcome. Use this OR
+          `expected_branch_outcome`, not both. Note: this enum is the
+          per-branch enum minus `assertion_does_not_match`, which is only
+          meaningful per-branch (a whole-mutation outcome can't separate
+          "the assertion didn't bind" from "the branch behaved as
+          unchanged" — only the per-branch view can).
       expected_branch_outcome:
         type: object
         maxProperties: 16
         additionalProperties:
           enum: [fail, unchanged, pass, inapplicable, assertion_does_not_match]
-        description: "Per-branch expected outcome map. Use this OR `expected_result`, not both."
+        description: >
+          Per-branch expected outcome map. Use this OR `expected_result`,
+          not both. The value enum is `expected_result`'s enum plus
+          `assertion_does_not_match` — the latter signals that the branch
+          ran but the assertion did not bind to a captured value (typically
+          when the mutation invalidates the assertion's selector).
     oneOf:
       - required: [expected_result]
       - required: [expected_branch_outcome]
