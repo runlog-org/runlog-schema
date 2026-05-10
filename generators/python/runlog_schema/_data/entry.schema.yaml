@@ -442,9 +442,12 @@ $defs:
         type: string
         description: >
           Optional `$FIXTURE_*` token of the static fixture this sidecar
-          targets (e.g. a redis_instance the writer mutates). Narrative
-          only — not structurally enforced; used by `replay_targets`
-          authoring to make the relationship explicit.
+          targets (e.g. a `redis_instance` the writer mutates). The
+          token-shape pattern is enforced here; the referent's existence
+          in `fixtures:` is currently NOT cross-checked (rule §5 walks
+          branch subtrees only, and `against:` lives under `fixtures.*`).
+          Used by `replay_targets` authoring to make the writer/target
+          relationship explicit.
         pattern: "^\\$FIXTURE_[A-Z0-9_]+$"
         maxLength: 256
       ready_when:
@@ -993,20 +996,16 @@ $defs:
       response: { type: string, maxLength: 65536 }
 
   # ─── Runtime declaration ────────────────────────────────────────────────
-  # Names the host CLI the verifier drives. Used by:
-  #   - cassette.runtime         — integration-tier reexecute mode
-  #   - verification.runtime     — unit-tier subprocess isolation
-  # Same shape on both sides so a host that supports tool=X at one tier
-  # supports it at the other (driver registry is cross-tier).
-  # v0.1 verifier implements `sqlite` and `shell`; other tools surface
-  # `runtime_unsupported` at run time.
   runtime:
     type: object
     description: >
       Names the host CLI the verifier drives — used by `cassette.runtime`
       (integration-tier reexecute) and `verification.runtime` (unit-tier
       subprocess isolation). Same shape on both sides; the driver registry
-      is cross-tier.
+      is cross-tier, so a host that supports `tool: X` at one tier
+      supports it at the other. v0.1 verifier implements `sqlite` and
+      `shell`; the other enum members surface `runtime_unsupported` at
+      run time.
     required: [tool]
     additionalProperties: false
     properties:

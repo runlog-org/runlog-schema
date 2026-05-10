@@ -2,6 +2,7 @@ package runlogschema
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -334,6 +335,69 @@ func TestMutationCassetteResponseFieldOrAction(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestKbIdPatternMatchesUnitIdPattern pins the byte-identical invariant
+// that manifest.schema.yaml#/properties/entries/items/properties/kb_id/pattern
+// promises against entry.schema.yaml#/properties/unit_id/pattern. The
+// kb_id is the manifest's reference to a Runlog entry's unit_id, so a
+// drift here would let the manifest accept identifiers the entry schema
+// rejects (or vice versa). Cross-file $ref isn't used because each
+// schema is published as an independent artifact under its own $id —
+// this test substitutes for the $ref-based equivalence enforcement.
+func TestKbIdPatternMatchesUnitIdPattern(t *testing.T) {
+	entryJSON, err := EntrySchemaJSON()
+	if err != nil {
+		t.Fatalf("EntrySchemaJSON: %v", err)
+	}
+	manifestJSON, err := ManifestSchemaJSON()
+	if err != nil {
+		t.Fatalf("ManifestSchemaJSON: %v", err)
+	}
+
+	var entryDoc, manifestDoc map[string]any
+	if err := json.Unmarshal(entryJSON, &entryDoc); err != nil {
+		t.Fatalf("unmarshal entry: %v", err)
+	}
+	if err := json.Unmarshal(manifestJSON, &manifestDoc); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+
+	entryPattern, err := dig[string](entryDoc, "properties", "unit_id", "pattern")
+	if err != nil {
+		t.Fatalf("entry.unit_id.pattern: %v", err)
+	}
+	kbIdPattern, err := dig[string](manifestDoc, "properties", "entries", "items", "properties", "kb_id", "pattern")
+	if err != nil {
+		t.Fatalf("manifest.entries.items.kb_id.pattern: %v", err)
+	}
+	if entryPattern != kbIdPattern {
+		t.Errorf("kb_id/unit_id pattern drift\n  entry.unit_id.pattern    = %q\n  manifest.kb_id.pattern   = %q\nthese MUST stay byte-identical (see manifest.schema.yaml comment)", entryPattern, kbIdPattern)
+	}
+}
+
+// dig walks a string-keyed nested map and returns the typed leaf value.
+// Returns an error describing the missing/wrong-typed segment so test
+// failures point at the exact path that drifted, not a generic nil-deref.
+func dig[T any](m map[string]any, path ...string) (T, error) {
+	var zero T
+	cur := any(m)
+	for i, key := range path {
+		obj, ok := cur.(map[string]any)
+		if !ok {
+			return zero, fmt.Errorf("at %v: expected object, got %T", path[:i], cur)
+		}
+		next, ok := obj[key]
+		if !ok {
+			return zero, fmt.Errorf("missing key %q at %v", key, path[:i])
+		}
+		cur = next
+	}
+	v, ok := cur.(T)
+	if !ok {
+		return zero, fmt.Errorf("at %v: expected %T, got %T", path, zero, cur)
+	}
+	return v, nil
 }
 
 // TestSchemaVersionMatchesConstant pins the accessor to the constant,
