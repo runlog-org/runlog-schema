@@ -292,6 +292,7 @@ $defs:
       - $ref: "#/$defs/fixture_redis_instance"
       - $ref: "#/$defs/fixture_docker_context"
       - $ref: "#/$defs/fixture_http_endpoint"
+      - $ref: "#/$defs/fixture_sidecar_process"
 
   file_tree:
     type: object
@@ -410,6 +411,104 @@ $defs:
     properties:
       kind: { const: http_endpoint }
       cassette: { type: string, maxLength: 256 }
+
+  fixture_sidecar_process:
+    type: object
+    description: >
+      Long-running sidecar process whose lifecycle spans the branch action.
+      The verifier starts the process before the branch action runs, waits
+      for the `ready_when` signal (or the fixed delay), then runs the
+      action with the sidecar still alive. On branch completion (success or
+      failure), the verifier sends SIGTERM, waits up to `stop_grace_seconds`,
+      then SIGKILL. Use for concurrent-writer fixtures, log-tailers,
+      cache-flushers, watchdog daemons — any side-effect-producing process
+      the action observes but does not control. `enabled: false` (typically
+      set via a `mutate_fixture` mutation) skips the start, so actions that
+      depend on the sidecar's presence yield a falsifying result.
+    additionalProperties: false
+    required: [kind, command]
+    properties:
+      kind: { const: sidecar_process }
+      command:
+        type: array
+        description: >
+          Argv array passed to `exec`. Inputs available to the branch
+          (e.g. `$WORKDIR`, `$REDIS_URL`, declared `$LITERAL_*` and
+          `$FIXTURE_*` tokens) are substituted before exec.
+        minItems: 1
+        maxItems: 64
+        items: { type: string, maxLength: 4096 }
+      against:
+        type: string
+        description: >
+          Optional `$FIXTURE_*` token of the static fixture this sidecar
+          targets (e.g. a redis_instance the writer mutates). Narrative
+          only — not structurally enforced; used by `replay_targets`
+          authoring to make the relationship explicit.
+        pattern: "^\\$FIXTURE_[A-Z0-9_]+$"
+        maxLength: 256
+      ready_when:
+        description: >
+          How the verifier decides the sidecar is ready before the branch
+          action begins. Discriminated by the property name (exactly one
+          of `stderr_regex`, `path_exists`, `delay_seconds`).
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required: [stderr_regex]
+            properties:
+              stderr_regex:
+                type: string
+                description: >
+                  Go regexp matched against the sidecar's stderr; the
+                  driver waits for the first match (or the start-up
+                  timeout, whichever fires first).
+                maxLength: 1024
+          - type: object
+            additionalProperties: false
+            required: [path_exists]
+            properties:
+              path_exists:
+                type: string
+                description: >
+                  Filesystem path the driver polls until it appears.
+                  Inputs are substituted before polling.
+                maxLength: 4096
+          - type: object
+            additionalProperties: false
+            required: [delay_seconds]
+            properties:
+              delay_seconds:
+                type: number
+                description: >
+                  Fixed delay before declaring the sidecar ready. Use
+                  when the process has no observable readiness signal.
+                minimum: 0
+                maximum: 60
+      enabled:
+        type: boolean
+        description: >
+          Whether the sidecar starts. Default true. Mutations that flip
+          this to false (via `mutate_fixture target: $FIXTURE_*,
+          new_value: false`) skip the start, falsifying actions that
+          depend on the sidecar's side-effects.
+        default: true
+      stop_grace_seconds:
+        type: integer
+        description: >
+          Seconds to wait after SIGTERM before sending SIGKILL on
+          teardown.
+        minimum: 0
+        maximum: 60
+        default: 5
+      expose_pid:
+        type: boolean
+        description: >
+          When true, the sidecar's PID is bound to the fixture's
+          `$FIXTURE_*` token in branch inputs so the action can signal
+          the sidecar (e.g. `kill -USR1 $FIXTURE_BG_WRITER`). Defaults
+          to false; the action treats the sidecar as opaque.
+        default: false
 
   # ─── Context ─────────────────────────────────────────────────────────────
   # A context is an execution environment an action_step can run inside (its
