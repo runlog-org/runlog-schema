@@ -1015,6 +1015,23 @@ $defs:
         type: string
         maxLength: 256
         description: "Advisory version constraint (e.g. '>=3.7.0'); logged, not enforced in v0.1."
+      share_state_across_mutations:
+        type: boolean
+        default: false
+        description: >
+          When true, mutation re-runs within a branch re-use the branch's
+          provisioned sandbox (workdir + ephemeral resource) and skip the
+          per-mutation re-execution of `cassette.setup_script`. Trades the
+          per-mutation isolation invariant for performance — only safe when
+          no mutation strategy targets a fixture or input that
+          `setup_script` consumes, and when mutated actions are idempotent
+          against the shared sandbox state (typically `--rm` containers,
+          no state-mutating non-`--rm` commands). v0.1 verifier honors
+          this flag only for `tool: docker` (where cold-start cost is
+          ~30s/mutation); other tools provision in <1s and don't need
+          the optimization. Cassettes that set this true with a non-docker
+          tool surface the typed reason `share_state_unsupported_for_tool`
+          at validation time.
 
   # ─── Differential (§4) ───────────────────────────────────────────────────
   # The closed, consumed half of the differential block. Every property
