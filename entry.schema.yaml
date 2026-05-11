@@ -974,6 +974,34 @@ $defs:
           are not enforced — teardown is best-effort. The tmpdir is
           os.RemoveAll'd unconditionally afterwards.
         items: { type: string, maxLength: 4096 }
+      fixtures:
+        type: object
+        maxProperties: 256
+        description: >
+          Cassette-scoped named fixtures referenced by $-token names in
+          cassette.setup_script, branch.setup, branch.action, and
+          contexts. Parallel to the entry-level `fixtures:` block but
+          lives under the cassette so the fixture lifecycle is bound to
+          the cassette's reexecute pass.
+
+          Verifier coupling: runlog-verifier (F82 + F94) reads from this
+          block via `parseFixtures` in
+          `runlog-verifier/internal/verify/cassette/cassette.go`. Each
+          value is one of the kinds in the shared fixture union — only
+          `sidecar_process` (F82) and `directory` / `docker_context`
+          (F94) have typed Go models today; other kinds are
+          schema-validated but silently skipped at parse time.
+
+          The name pattern is intentionally broader than the entry-level
+          fixtures' `$FIXTURE_*` constraint: F94's canonical docker seed
+          uses `$SOURCE_PATH`, which is the path placeholder the
+          Dockerfile body's `COPY` references. Constraining to
+          `$FIXTURE_*` would force renames at the seed layer for no
+          semantic gain — the verifier doesn't care about the prefix.
+        patternProperties:
+          "^\\$[A-Z][A-Z0-9_]*$":
+            $ref: "#/$defs/fixture"
+        additionalProperties: false
       captures:
         type: array
         minItems: 1
