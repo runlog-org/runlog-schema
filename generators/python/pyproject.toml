@@ -1,8 +1,8 @@
 # Python distribution of runlog-schema. Mirrors the Go module's API
 # surface (see ../../schema.go). Schema YAML files are committed
 # copies under runlog_schema/_data/; CI gates that they match the
-# canonical files at the repo root (see ../../scripts/ and the
-# python-generator job in ../../.github/workflows/ci.yml).
+# canonical files at the repo root (see scripts/sync_schemas.sh and
+# the python-generator job in ../../.github/workflows/ci.yml).
 #
 # F28a (Go) lives at the repo root; this F28c slice puts the Python
 # package under generators/python/ so the two distributions don't
@@ -31,6 +31,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [

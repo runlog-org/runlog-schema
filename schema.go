@@ -117,7 +117,7 @@ func ManifestSchemaJSON() ([]byte, error) {
 }
 
 // yamlBytesToJSON parses YAML and re-encodes as canonical JSON. The
-// jsonschema/v5 compiler and json.Decoder both expect JSON-native
+// jsonschema/v6 compiler and json.Decoder both expect JSON-native
 // values (string-keyed maps, slices, JSON primitives); routing through
 // json.Marshal guarantees that shape regardless of yaml.v3 quirks.
 //

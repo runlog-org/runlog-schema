@@ -49,7 +49,9 @@ from jsonschema import Draft202012Validator
 doc = json.loads(entry_schema_json())
 Draft202012Validator.check_schema(doc)
 
-assert schema_version() == SCHEMA_VERSION == "0.1.0"
+# schema_version() and SCHEMA_VERSION both source the repo-root
+# VERSION pin (single source of truth, mirrors Go's SchemaVersionConst).
+assert schema_version() == SCHEMA_VERSION
 ```
 
 ## API parity with the Go module
@@ -88,7 +90,7 @@ pytest -v
 ```
 
 Python ≥3.10 is supported (matches the server's pinned floor; 3.12 is
-what production runs). The package uses
+what production runs, and CI also exercises 3.14). The package uses
 `importlib.resources.files()`, stable since Python 3.9.
 
 ## Build backend
