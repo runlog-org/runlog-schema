@@ -106,15 +106,27 @@ jobs:
           cache: pip
 
       # Bundled copies must match the canonical files byte-for-byte:
-      # the two YAML schemas plus VERSION (which drives both the Go
-      # SchemaVersionConst and the Python package's version + module
-      # SCHEMA_VERSION constant). If any drift, run
-      # `bash generators/python/scripts/sync_schemas.sh` locally and
+      # every *.schema.yaml at the repo root plus VERSION (which drives
+      # both the Go SchemaVersionConst and the Python package's version
+      # + module SCHEMA_VERSION constant). The gated set is *derived*
+      # the same way scripts/sync_schemas.sh and tests/test_data_sync.py
+      # derive it (glob + VERSION) rather than hardcoded — a hardcoded
+      # [entry, manifest] list would let a third schema sync and pass
+      # the pytest gate yet silently skip this CI gate, the exact drift
+      # the helper and pytest were written to prevent. If any drift,
+      # run `bash generators/python/scripts/sync_schemas.sh` locally and
       # commit the result alongside the canonical edit.
       - name: Bundled schemas match canonical
         run: |
-          set -e
-          for f in entry.schema.yaml manifest.schema.yaml VERSION; do
+          set -euo pipefail
+          shopt -s nullglob
+          schema_files=( *.schema.yaml )
+          shopt -u nullglob
+          if (( ${#schema_files[@]} == 0 )); then
+            echo "::error::no *.schema.yaml found at repo root; the byte-diff gate would vacuously pass"
+            exit 1
+          fi
+          for f in "${schema_files[@]}" VERSION; do
             if ! cmp -s "$f" "generators/python/runlog_schema/_data/$f"; then
               echo "::error file=generators/python/runlog_schema/_data/$f::drifted from canonical $f; run generators/python/scripts/sync_schemas.sh"
               diff -u "$f" "generators/python/runlog_schema/_data/$f" || true
