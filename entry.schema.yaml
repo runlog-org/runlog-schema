@@ -1081,6 +1081,21 @@ $defs:
           the optimization. Cassettes that set this true with a non-docker
           tool surface the typed reason `share_state_unsupported_for_tool`
           at validation time.
+      python_packages:
+        type: object
+        maxProperties: 64
+        description: >
+          Optional per-entry Python package pins (PyPI name → EXACT version,
+          e.g. {pyyaml: "==5.4.1"} or {pyyaml: "5.4.1"}). Consumed only at
+          unit-tier Python (function isolation): the verifier provisions an
+          ephemeral venv with exactly these pins before running the action.
+          Advisory / ignored at other tiers and isolations. Exact pins only —
+          ranges or PEP 440 specifiers are rejected so verification is
+          reproducible over time.
+        additionalProperties:
+          type: string
+          maxLength: 128
+          pattern: "^(==)?[0-9][0-9A-Za-z.\\-_]*$"
 
   # ─── Differential (§4) ───────────────────────────────────────────────────
   # The closed, consumed half of the differential block. Every property
